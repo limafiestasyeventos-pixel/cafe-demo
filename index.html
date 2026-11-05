@@ -67,6 +67,8 @@ h2.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--
 .chip.preparando{background:var(--warn-soft);color:var(--warn)}
 .chip.listo{background:var(--ok-soft);color:var(--ok)}
 .chip.en_camino{background:var(--soft);color:var(--brand)}
+.chip.edit{background:var(--warn-soft);color:var(--warn)}
+.chip.anulado{background:var(--bad-soft);color:var(--bad)}
 .chip.entregado{background:transparent;color:var(--muted);border:1px solid var(--line)}
 
 /* Mesas */
@@ -87,6 +89,30 @@ h2.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--
 .mesa.st-separada{border-style:dashed;border-color:var(--brand);background:var(--soft)}
 .mesa.st-separada .chip{background:var(--brand);color:var(--surface)}
 .mesa.st-separada .mt{color:var(--brand);font-weight:600}
+
+/* Tickets */
+.tk-busca{box-sizing:border-box;width:100%;margin-bottom:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit}
+.trow{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--muted);border-radius:14px;padding:12px 14px;display:grid;gap:10px;grid-template-columns:auto minmax(0,1fr);align-items:start;overflow-wrap:anywhere}
+.trow.t-mesa{border-left-color:#7B3FC4}
+.trow.t-recoger{border-left-color:var(--ok)}
+.trow.t-delivery{border-left-color:var(--brand)}
+.trow.t-llevar{border-left-color:var(--warn)}
+.trow.off{opacity:.65}
+.t-num{font-family:var(--f-display);font-size:20px;font-weight:800;background:var(--bg);border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+.t-info{display:grid;gap:4px;min-width:0}
+.t-name{font-weight:600;font-size:16px}
+.t-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.t-items{font-size:14px}
+.t-cambio{font-size:13px;color:var(--warn)}
+.t-der{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.t-total{font-family:var(--f-display);font-size:21px;font-weight:800;white-space:nowrap}
+.t-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.edit-av{background:var(--warn-soft);border-radius:10px;padding:8px 10px;font-size:13px;display:grid;gap:2px}
+.edit-av b{color:var(--warn);font-size:14px}
+@media (min-width:860px){
+  .trow{grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+  .t-der{grid-column:auto;justify-content:flex-end;flex-wrap:nowrap}
+}
 
 /* Tarjetas de pedido */
 .list{display:grid;gap:10px}
@@ -391,14 +417,15 @@ const METODO_DE={efectivo:'Efectivo',tarjeta:'Tarjeta',yape:'Yape','yape-pagado'
 const ESTADOS={nuevo:'Nuevo',preparando:'En preparación',listo:'Listo',en_camino:'En camino',entregado:'Entregado'};
 const METODOS=['Efectivo','Yape','Plin','Tarjeta'];
 const ROLES={
-  dueno:{n:'Dueño',d:'Ve todas las pantallas y administra la carta, el negocio y el personal.',v:['mesas','delivery','cocina','moto','caja','admin']},
-  cajero:{n:'Caja',d:'Toma pedidos, separa mesas, registra deliveries y pedidos para recoger, y ve la caja del día.',v:['mesas','delivery','caja']},
+  dueno:{n:'Dueño',d:'Ve todas las pantallas y administra la carta, el negocio y el personal.',v:['mesas','delivery','tickets','cocina','moto','caja','admin']},
+  cajero:{n:'Caja',d:'Toma pedidos, separa mesas, registra deliveries y pedidos para recoger, edita tickets y ve la caja del día.',v:['mesas','delivery','tickets','caja']},
   mesero:{n:'Mesero',d:'Atiende las mesas, los pedidos para llevar y entrega los pedidos para recoger.',v:['mesas']},
   cocina:{n:'Cocina',d:'Solo ve la fila de pedidos por preparar.',v:['cocina']},
   moto:{n:'Repartidor',d:'Solo ve los pedidos que debe llevar en la moto.',v:['moto']}};
 const NAV={
   mesas:['Mesas','<rect x="3" y="7" width="18" height="4" rx="1"/><path d="M6 11v9M18 11v9"/>'],
   delivery:['Delivery','<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>'],
+  tickets:['Tickets','<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>'],
   cocina:['Cocina','<path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v3M12 3v3"/>'],
   moto:['Moto','<circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h5l-2-7H9M14 17l2-7h3l-1 4"/>'],
   caja:['Caja','<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>'],
@@ -408,7 +435,7 @@ const NAV={
 const KEY='cafe-demo-v1';
 let S;
 const clone=o=>JSON.parse(JSON.stringify(o));
-function blank(keep){return {seq:0,pedidos:[],clientes:{},cuenta:{},reservas:{},menu:keep?keep.menu:clone(DEF_MENU),cats:keep?keep.cats:clone(DEF_CATS),config:keep?keep.config:clone(DEF_CONFIG),personal:keep?keep.personal:clone(DEF_PERSONAL)}}
+function blank(keep){return {seq:0,pedidos:[],clientes:{},cuenta:{},reservas:{},anulados:[],menu:keep?keep.menu:clone(DEF_MENU),cats:keep?keep.cats:clone(DEF_CATS),config:keep?keep.config:clone(DEF_CONFIG),personal:keep?keep.personal:clone(DEF_PERSONAL)}}
 function seed(){
   const s=blank(),now=Date.now(),m=60000,by=n=>DEF_MENU.find(x=>x.nombre===n);
   const L=rows=>rows.map(([n,c,nota,op])=>({pid:by(n).id,nombre:n,precio:by(n).precio,cant:c,nota:nota||'',op:op||''}));
@@ -433,6 +460,7 @@ function migrate(s){
   if(!s.config)s.config=clone(DEF_CONFIG);
   if(!s.personal)s.personal=clone(DEF_PERSONAL);
   if(!s.reservas)s.reservas={};
+  if(!s.anulados)s.anulados=[];
   s.cats.forEach(c=>{if(c.azucar===undefined){const q=DEF_CATS.find(x=>x.id===c.id)||{};c.azucar=!!q.azucar;c.temp=!!q.temp}});
   return s;
 }
@@ -480,6 +508,23 @@ function cobroHtml(p){
   if(c.pago==='tarjeta')return `<div class="vuelto">Cobrar <b class="money">${money(t)}</b> con tarjeta. <b>Llevar el POS.</b></div>`;
   return `<div class="vuelto">Cobrar <b class="money">${money(t)}</b> · ${PAGOS[c.pago]}</div>`;
 }
+const editable=p=>!p.anulado&&['nuevo','preparando','listo'].includes(p.estado)&&!(p.tipo==='mesa'&&p.pagado);
+const chipEdit=p=>p.editado?'<span class="chip edit">Ticket editado</span>':'';
+const metodoTxt=p=>p.metodo?p.metodo:p.cliente&&p.cliente.pago?(p.cliente.pago==='mixto'?p.cliente.mixto+' + Efectivo':METODO_DE[p.cliente.pago]):'Por cobrar';
+const claveItem=i=>i.nombre+(i.op?' ('+i.op+')':'')+(i.nota?' · nota: '+i.nota:'');
+function marcarEdicion(p,antes){
+  const cuenta=l=>{const o={};l.forEach(i=>{const k=claveItem(i);o[k]=(o[k]||0)+i.cant});return o};
+  const a=cuenta(antes),b=cuenta(p.items),cambios=[];
+  new Set([...Object.keys(a),...Object.keys(b)]).forEach(k=>{const d=(b[k]||0)-(a[k]||0);if(d>0)cambios.push('Agregado: '+d+'× '+k);if(d<0)cambios.push('Quitado: '+(-d)+'× '+k)});
+  const agrego=cambios.some(x=>x.startsWith('Agregado'));
+  let volvio=false;
+  if(agrego&&p.estado==='listo'){p.estado='preparando';delete p.listoEn;volvio=true}
+  const enCoc=cambios.length>0&&(p.estado==='nuevo'||p.estado==='preparando');
+  const prev=p.editado&&p.editado.cocina?p.editado.cambios:[];
+  p.editado={en:Date.now(),veces:((p.editado&&p.editado.veces)||0)+1,cambios:enCoc?[...prev,...cambios]:cambios,cocina:enCoc};
+  if(p.tipo==='mesa'&&agrego)S.cuenta[p.mesa]=false;
+  return 'Ticket '+num(p)+' editado'+(volvio?': volvió a cocina':enCoc?': cocina ve el cambio':'');
+}
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.k);toast.k=setTimeout(()=>el.hidden=true,2600)}
 // Botón que pide un segundo toque para confirmar (las ventanas de confirmación no funcionan aquí)
@@ -489,6 +534,7 @@ const vistas=()=>ROLES[rol].v;
 let view=vistas().includes(location.hash.slice(1))?location.hash.slice(1):vistas()[0];
 const mixVacio=()=>({otro:'Yape',monto:'',con:''});
 let mix=mixVacio(), mixCtx={total:0,ctx:'local'};
+let ticketFiltro='todos', ticketBusca='';
 let sheetFn=null, draft=null, bcat=null, bview='menu', motoSel=new Set(), adminTab='carta', adminCat='todas', negDraft=null;
 
 const puedeSeparar=()=>rol==='cajero'||rol==='dueno';
@@ -507,6 +553,19 @@ const deliveryActivos=()=>S.pedidos.filter(p=>deliORecoger(p)&&p.estado!=='entre
 const efectivoMoto=()=>S.pedidos.filter(p=>p.tipo==='delivery'&&efectivoDe(p)>0&&p.rendido===false);
 
 // ---------- Pantallas ----------
+function ticketsLista(){
+  const base=ticketFiltro==='anulados'?S.anulados.filter(hoy):S.pedidos.filter(p=>hoy(p)&&(ticketFiltro==='todos'||p.tipo===ticketFiltro));
+  const b=ticketBusca.trim().toLowerCase().replace(/^#/,'');
+  const lista=base.filter(p=>{if(!b)return true;const c=p.cliente||{};return [c.nombre,c.cel,String(p.n),num(p),p.mesa?'mesa '+p.mesa:''].some(x=>String(x||'').toLowerCase().includes(b))}).sort((x,y)=>y.creado-x.creado);
+  if(!lista.length)return '<div class="empty">No hay tickets para mostrar.</div>';
+  const tipoN={mesa:'Mesa',llevar:'Para llevar',recoger:'Recoger',delivery:'Delivery'};
+  return lista.map(p=>{
+    const c=p.cliente||{},nombre=p.tipo==='mesa'?'Mesa '+p.mesa:esc(c.nombre);
+    const anulado=!!p.anulado,puede=editable(p);
+    const motivo=anulado?'':p.estado==='en_camino'?'<span class="note">Ya salió en la moto</span>':puede?'':'<span class="note">Ya entregado o cobrado</span>';
+    return `<div class="trow t-${p.tipo} ${anulado?'off':''}"><div class="t-num">${num(p)}</div><div class="t-info"><div class="t-name">${nombre}</div><div class="t-chips"><span class="chip">${tipoN[p.tipo]}</span>${anulado?'<span class="chip anulado">Anulado</span>':chip(p.estado)}${chipEdit(p)}<span class="meta">${hora(p.creado)}</span>${c.cel?`<span class="meta num">${esc(c.cel)}</span>`:''}</div><div class="t-items">${p.items.map(i=>`${i.cant}× ${esc(i.nombre)}${i.op?` <span class="meta">(${esc(i.op)})</span>`:''}`).join(' · ')}</div>${c.dir?`<div class="meta">${esc(c.dir)}</div>`:''}${p.editado?`<div class="t-cambio">Editado a las ${hora(p.editado.en)}${p.editado.cambios.length?': '+esc(p.editado.cambios.join(' · ')):': datos o pago'}</div>`:''}</div><div class="t-der"><div><div class="t-total">${money(tot(p))}</div><div class="meta">${esc(metodoTxt(p))}</div></div><div class="t-btns">${c.cel&&!anulado?`<a class="btn small" href="tel:+51${esc(c.cel)}">Llamar</a>`:''}${puede?`<button class="btn small primary" data-act="tkEdit" data-id="${p.id}">Editar</button><button class="btn small danger" data-act="tkAnular" data-id="${p.id}">Anular</button>`:motivo}</div></div></div>`;
+  }).join('');
+}
 const VIEWS={
 mesas(){
   const lab={libre:'Libre',separada:'Separada',ocupada:'Ocupada',listo:'Listo para servir',cuenta:'Pidió la cuenta'};
@@ -521,14 +580,22 @@ delivery(){
   const act=deliveryActivos(),done=S.pedidos.filter(p=>deliORecoger(p)&&p.estado==='entregado'&&hoy(p));
   let h=`<div class="vhead"><div><h1>Delivery y recoger</h1><p>Pedidos que llegan por WhatsApp o por teléfono.</p></div><button class="btn primary" data-act="newDel">+ Nuevo pedido</button></div>`;
   h+=`<h2 class="sec">En curso (${act.length})</h2>`;
-  h+=act.length?'<div class="list">'+act.map(p=>`<button class="card" data-act="delDet" data-id="${p.id}"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chip(p.estado)}</div><div class="meta">${p.tipo==='recoger'?'<b>Recoger:</b> pasa por el local':esc(p.cliente.dir)}</div><div class="spread"><span class="meta">${pagoTxt(p)} · ${hora(p.creado)}</span><b class="money">${money(tot(p))}</b></div></button>`).join('')+'</div>':'<div class="empty">No hay pedidos en curso.</div>';
+  h+=act.length?'<div class="list">'+act.map(p=>`<button class="card" data-act="delDet" data-id="${p.id}"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div><div class="meta">${p.tipo==='recoger'?'<b>Recoger:</b> pasa por el local':esc(p.cliente.dir)}</div><div class="spread"><span class="meta">${pagoTxt(p)} · ${hora(p.creado)}</span><b class="money">${money(tot(p))}</b></div></button>`).join('')+'</div>':'<div class="empty">No hay pedidos en curso.</div>';
   if(done.length)h+=`<h2 class="sec">Entregados hoy (${done.length})</h2><div class="list">`+done.map(p=>`<div class="card"><div class="spread"><span>${num(p)} · ${esc(p.cliente.nombre)}${p.tipo==='recoger'?' · Recoger':''}</span><span class="money">${money(tot(p))} · ${esc(p.metodo)}</span></div></div>`).join('')+'</div>';
+  return h;
+},
+tickets(){
+  const hoyL=S.pedidos.filter(hoy),anul=S.anulados.filter(hoy);
+  const cnt=k=>k==='todos'?hoyL.length:k==='anulados'?anul.length:hoyL.filter(p=>p.tipo===k).length;
+  let h=`<div class="vhead"><div><h1>Tickets</h1><p>Todos los pedidos de hoy. Mientras no hayan salido, se pueden editar o anular.</p></div></div>`;
+  h+=`<div class="fchips">${[['todos','Todos'],['delivery','Delivery'],['recoger','Recoger'],['mesa','Mesa'],['llevar','Para llevar'],['anulados','Anulados']].map(([k,n])=>`<button class="${ticketFiltro===k?'on':''}" data-act="tkFiltro" data-f="${k}">${n} (${cnt(k)})</button>`).join('')}</div>`;
+  h+=`<input class="tk-busca" id="tk-busca" autocomplete="off" placeholder="Buscar por nombre, celular o N.º de ticket" aria-label="Buscar ticket" value="${esc(ticketBusca)}"><div class="list" id="tk-list">${ticketsLista()}</div>`;
   return h;
 },
 cocina(){
   const k=enCocina(),listos=S.pedidos.filter(p=>p.estado==='listo');
   let h=`<div class="vhead"><div><h1>Cocina y barra</h1><p>Del más antiguo al más nuevo. Toca <b>Empezar</b> al prepararlo y <b>Listo</b> al terminar.</p></div></div>`;
-  h+=k.length?'<div class="grid-k">'+k.map(p=>`<div class="card ticket ${p.estado}"><div class="card-top"><span class="tipo">${quien(p)}</span>${espera(p.creado)}</div><div class="spread meta"><span>${num(p)} · ${hora(p.creado)}</span>${chip(p.estado)}</div>${itemsHtml(p)}${p.estado==='nuevo'?`<button class="btn primary" data-act="kStart" data-id="${p.id}">Empezar</button>`:`<button class="btn ok" data-act="kReady" data-id="${p.id}">Listo</button>`}</div>`).join('')+'</div>':'<div class="empty">No hay pedidos pendientes. Cuando el mesero o la caja envíen uno, aparecerá aquí.</div>';
+  h+=k.length?'<div class="grid-k">'+k.map(p=>`<div class="card ticket ${p.estado}"><div class="card-top"><span class="tipo">${quien(p)}</span>${espera(p.creado)}</div><div class="spread meta"><span>${num(p)} · ${hora(p.creado)}</span>${chip(p.estado)}</div>${p.editado&&p.editado.cocina?`<div class="edit-av"><b>Ticket editado · ${hora(p.editado.en)}</b>${p.editado.cambios.map(x=>`<span>${esc(x)}</span>`).join('')}</div>`:''}${itemsHtml(p)}${p.estado==='nuevo'?`<button class="btn primary" data-act="kStart" data-id="${p.id}">Empezar</button>`:`<button class="btn ok" data-act="kReady" data-id="${p.id}">Listo</button>`}</div>`).join('')+'</div>':'<div class="empty">No hay pedidos pendientes. Cuando el mesero o la caja envíen uno, aparecerá aquí.</div>';
   if(listos.length)h+=`<h2 class="sec">Listos, esperando que los recojan (${listos.length})</h2><div class="list">`+listos.map(p=>`<div class="card"><div class="spread"><span class="card-title">${quien(p)}</span><span class="meta">${num(p)}</span></div></div>`).join('')+'</div>';
   return h;
 },
@@ -542,7 +609,7 @@ moto(){
   h+=`<div class="cash"><span class="note">Efectivo cobrado, por entregar en caja</span><b class="money">${money(efe)}</b><span class="note">${ruta.length} en camino · ${coc.length} en cocina</span></div>`;
   h+=`<h2 class="sec">Listos para salir (${listos.length})</h2>`;
   if(listos.length){
-    h+='<div class="list">'+listos.map(p=>`<button class="card ${motoSel.has(p.id)?'sel':''}" data-act="msel" data-id="${p.id}" aria-pressed="${motoSel.has(p.id)}"><div class="card-top"><span class="card-title">${motoSel.has(p.id)?'✓ ':''}${num(p)} · ${esc(p.cliente.nombre)}</span></div><div class="meta">${esc(p.cliente.dir)}</div><div class="meta">Listo hace ${mins(p.listoEn||p.creado)} min</div>${cobroHtml(p)}</button>`).join('')+'</div>';
+    h+='<div class="list">'+listos.map(p=>`<button class="card ${motoSel.has(p.id)?'sel':''}" data-act="msel" data-id="${p.id}" aria-pressed="${motoSel.has(p.id)}"><div class="card-top"><span class="card-title">${motoSel.has(p.id)?'✓ ':''}${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}</div><div class="meta">${esc(p.cliente.dir)}</div><div class="meta">Listo hace ${mins(p.listoEn||p.creado)} min</div>${cobroHtml(p)}</button>`).join('')+'</div>';
     h+=`<div class="row" style="margin-top:12px"><button class="btn primary" data-act="salir" ${motoSel.size?'':'disabled'}>${motoSel.size?`Salir con ${motoSel.size} pedido${motoSel.size>1?'s':''}`:'Toca los pedidos que vas a llevar'}</button></div>`;
   } else h+='<div class="empty">Nada para llevar por ahora.</div>';
   h+=`<h2 class="sec">En camino (${ruta.length})</h2>`;
@@ -637,7 +704,7 @@ function sheetMesa(n){return()=>{
     paint(head('Mesa '+n,'Separada')+`<div class="sh-body"><div class="card"><b>${esc(r.nombre)}</b><div>Llega a las <b>${hora12(r.hora)}</b>${r.personas?` · ${r.personas} persona${r.personas>1?'s':''}`:''}</div></div><p class="note" style="margin:0">Cuando llegue el cliente, tome su pedido: la mesa pasará a ocupada.</p></div><div class="sh-foot">${puedeSeparar()?`<button class="btn" data-act="sepQuitar" data-n="${n}">Quitar separación</button>`:''}<button class="btn primary" data-act="addMesa" data-n="${n}">Llegó el cliente: tomar pedido</button></div>`);
     return;
   }
-  let b=m.ps.length?m.ps.map((p,i)=>`<div class="card"><div class="card-top"><span class="card-title">Ronda ${i+1} · ${num(p)} · ${hora(p.creado)}</span>${chip(p.estado)}</div>${itemsHtml(p)}<div class="spread"><span class="meta">Subtotal</span><span class="money">${money(tot(p))}</span></div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Ya lo serví</button>`:''}</div>`).join('')+`<div class="totals"><div class="spread"><span>Total de la mesa</span><span class="money">${money(m.total)}</span></div></div>`:`<div class="empty">La mesa está libre. Toca <b>Tomar pedido</b> cuando lleguen los clientes${puedeSeparar()?', o <b>Separar mesa</b> si la piden por WhatsApp':''}.</div>`;
+  let b=m.ps.length?m.ps.map((p,i)=>`<div class="card"><div class="card-top"><span class="card-title">Ronda ${i+1} · ${num(p)} · ${hora(p.creado)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}<div class="spread"><span class="meta">Subtotal</span><span class="money">${money(tot(p))}</span></div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Ya lo serví</button>`:''}</div>`).join('')+`<div class="totals"><div class="spread"><span>Total de la mesa</span><span class="money">${money(m.total)}</span></div></div>`:`<div class="empty">La mesa está libre. Toca <b>Tomar pedido</b> cuando lleguen los clientes${puedeSeparar()?', o <b>Separar mesa</b> si la piden por WhatsApp':''}.</div>`;
   let f=`<button class="btn ${m.ps.length?'':'primary'}" data-act="addMesa" data-n="${n}">${m.ps.length?'+ Agregar algo más':'Tomar pedido'}</button>`;
   if(!m.ps.length&&puedeSeparar())f=`<button class="btn" data-act="sepForm" data-n="${n}">Separar mesa</button>`+f;
   if(m.ps.length)f+=`<button class="btn" data-act="cuenta" data-n="${n}">${S.cuenta[n]?'Quitar aviso de cuenta':'Pidió la cuenta'}</button><button class="btn primary" data-act="cobrar" data-n="${n}">Cobrar ${money(m.total)}</button>`;
@@ -656,18 +723,18 @@ function sheetCobrarMix(n){return()=>{
 function sheetLlevar(){
   const ll=llevarActivos().sort((a,b)=>a.creado-b.creado);
   const rc=recogerActivos().sort((a,b)=>a.creado-b.creado);
-  const llHtml=ll.length?ll.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chip(p.estado)}</div>${itemsHtml(p)}<div class="meta">Pagado con ${esc(p.metodo)} · ${money(tot(p))}</div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Entregado al cliente</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos para llevar en curso.</div>';
-  const rcHtml=rc.length?rc.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chip(p.estado)}</div>${itemsHtml(p)}${cobroHtml(p)}${p.estado==='listo'?`<button class="btn ok" data-act="entregar" data-id="${p.id}" data-keep="1">Entregado${prepago(p)?'':' y cobrado'}</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos de WhatsApp por recoger.</div>';
+  const llHtml=ll.length?ll.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}<div class="meta">Pagado con ${esc(p.metodo)} · ${money(tot(p))}</div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Entregado al cliente</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos para llevar en curso.</div>';
+  const rcHtml=rc.length?rc.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}${cobroHtml(p)}${p.estado==='listo'?`<button class="btn ok" data-act="entregar" data-id="${p.id}" data-keep="1">Entregado${prepago(p)?'':' y cobrado'}</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos de WhatsApp por recoger.</div>';
   paint(head('Mostrador','Para llevar y recoger')+`<div class="sh-body"><h2 class="sec" style="margin-top:0">Recoger: pedidos de WhatsApp (${rc.length})</h2>${rcHtml}<h2 class="sec">Para llevar: clientes en el local (${ll.length})</h2>${llHtml}</div><div class="sh-foot"><button class="btn primary" data-act="addLlevar">+ Nuevo para llevar</button></div>`);
 }
 function sheetDelDet(id){return()=>{
   const p=S.pedidos.find(x=>x.id===id);if(!p){closeSheet();return}
   const c=p.cliente;
   if(p.tipo==='recoger'){
-    paint(head('Recoger · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><b>El cliente pasa a recoger por el local.</b></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div>${p.estado==='listo'?'':'<p class="note" style="margin:0">Cuando cocina lo marque como listo, aquí podrá entregarlo.</p>'}</div>${p.estado==='listo'?`<div class="sh-foot"><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`:''}`);
+    paint(head('Recoger · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><b>El cliente pasa a recoger por el local.</b></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div>${p.estado==='listo'?'':'<p class="note" style="margin:0">Cuando cocina lo marque como listo, aquí podrá entregarlo.</p>'}</div>${p.estado==='listo'?`<div class="sh-foot"><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`:''}`);
     return;
   }
-  paint(head('Delivery · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><div>${esc(c.dir)}</div><div class="meta">${esc(c.ref)}</div><div class="meta">Celular <span class="num">${esc(c.cel)}</span></div></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(sub(p))}</span></div><div class="spread"><span>Delivery</span><span class="money">${money(p.envio)}</span></div><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div><a class="btn" href="${waLink(c.cel,`Hola ${c.nombre}, recibimos tu pedido ${num(p)} en ${negocio()}. Total ${money(tot(p))}. Pago: ${pagoTxt(p)}. Te avisamos cuando salga la moto.`)}" target="_blank" rel="noopener">Confirmar al cliente por WhatsApp</a><p class="note" style="margin:0">El botón abre WhatsApp con el mensaje ya escrito; usted decide si lo envía.</p></div>`);
+  paint(head('Delivery · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><div>${esc(c.dir)}</div><div class="meta">${esc(c.ref)}</div><div class="meta">Celular <span class="num">${esc(c.cel)}</span></div></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(sub(p))}</span></div><div class="spread"><span>Delivery</span><span class="money">${money(p.envio)}</span></div><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div><a class="btn" href="${waLink(c.cel,`Hola ${c.nombre}, recibimos tu pedido ${num(p)} en ${negocio()}. Total ${money(tot(p))}. Pago: ${pagoTxt(p)}. Te avisamos cuando salga la moto.`)}" target="_blank" rel="noopener">Confirmar al cliente por WhatsApp</a><p class="note" style="margin:0">El botón abre WhatsApp con el mensaje ya escrito; usted decide si lo envía.</p></div>`);
 }}
 // Pedazos que comparten mesa, para llevar y delivery
 const redraw=()=>{if(sheetFn)sheetFn()};
@@ -699,12 +766,12 @@ const draftCount=d=>d.items.reduce((a,i)=>a+i.cant,0);
 
 function sheetBuilder(){
   const d=draft,count=draftCount(d),st=draftSub(d);
-  const eb=d.tipo==='mesa'?'Mesa '+d.mesa:'Para llevar';
+  const eb=(d.editId?'Editar ticket · ':'')+(d.tipo==='mesa'?'Mesa '+d.mesa:'Para llevar');
   if(bview==='menu'){
     paint(head(eb,'Elige productos')+chipsHtml()+`<div class="sh-body">${prodsHtml(d)}</div><div class="sh-foot"><button class="btn primary" data-act="bview" data-v="cart" ${count?'':'disabled'}>${count?`Revisar pedido · ${count} producto${count>1?'s':''} · ${money(st)}`:'Toca + para agregar productos'}</button></div>`);
   } else {
-    const extra=d.tipo==='llevar'?`<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Ambos (efectivo + Yape o Plin)</option></select></div></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
-    paint(head(eb,'Revisar pedido')+`<div class="sh-body"><div class="tk-items" style="padding:0">${tkLineas(d)}</div>${extra}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(st)}</span></div></div></div><div class="sh-foot"><button class="btn ghost" data-act="bview" data-v="menu">← Agregar más</button><button class="btn primary" data-act="send">Enviar a cocina</button></div>`);
+    const extra=d.tipo==='llevar'?`${d.editId&&r2(st-d.antes)!==0?`<div class="edit-av"><b>Antes ${money(d.antes)} · Ahora ${money(st)}</b><span>${st>d.antes?'Cobre la diferencia de '+money(r2(st-d.antes))+' al cliente.':'Devuelva la diferencia de '+money(r2(d.antes-st))+' al cliente.'}</span></div>`:''}<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Ambos (efectivo + Yape o Plin)</option></select></div></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
+    paint(head(eb,'Revisar pedido')+`<div class="sh-body"><div class="tk-items" style="padding:0">${tkLineas(d)}</div>${extra}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(st)}</span></div></div></div><div class="sh-foot"><button class="btn ghost" data-act="bview" data-v="menu">← Agregar más</button><button class="btn primary" data-act="send">${d.editId?'Guardar cambios':'Enviar a cocina'}</button></div>`);
   }
 }
 function startBuilder(d){draft=Object.assign({items:[]},d);bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetBuilder)}
@@ -712,7 +779,7 @@ function startBuilder(d){draft=Object.assign({items:[]},d);bcat=(S.cats[0]||{}).
 // ---------- Delivery en 3 pasos ----------
 const stepsHtml=n=>`<ol class="steps">${['Cliente','Productos','Pago'].map((t,i)=>`<li class="${i+1===n?'on':i+1<n?'done':''}" ${i+1===n?'aria-current="step"':''}><span>${i+1<n?'✓':i+1}</span>${t}</li>`).join('')}</ol>`;
 const envioD=d=>d.tipo==='recoger'?0:(d.cliente.envio||0);
-const tituloWiz=d=>d.tipo==='recoger'?'Nuevo pedido para recoger':'Nuevo delivery';
+const tituloWiz=d=>{if(d.editId){const p=find(d.editId);return 'Editar ticket '+(p?num(p):'')}return d.tipo==='recoger'?'Nuevo pedido para recoger':'Nuevo delivery'};
 const vueltoD=d=>{
   if(d.tipo==='recoger')return null;
   const tt=draftSub(d)+envioD(d);
@@ -767,6 +834,11 @@ function vueltoHtml(total,con,verbo='llevarle'){
 }
 function detPago(d){
     const total=draftSub(d)+envioD(d),p=d.pagoSel,rec=d.tipo==='recoger';
+    let aviso='';
+    if(d.editId&&r2(total-d.antes)!==0){
+      const dif=r2(total-d.antes);
+      aviso=`<div class="edit-av"><b>Antes ${money(d.antes)} · Ahora ${money(total)}</b><span>${dif>0?`Faltan ${money(dif)}.`:`Sobran ${money(-dif)}.`} ${/-pagado$/.test(p||'')?(dif>0?'Si ya pagó por Yape o Plin, pídale la captura de la diferencia, o elija Ambos para cobrarla en efectivo.':'Si ya pagó por Yape o Plin, hay que devolverle la diferencia.'):'Revise el pago antes de guardar.'}</span></div>`;
+    }
     let det='<span class="note">Elija cómo va a pagar el cliente.</span>';
     if(p==='mixto'){
       det=mixHtml(total,rec?'recoger':'delivery');
@@ -781,7 +853,7 @@ function detPago(d){
       const n=p==='plin-pagado'?'Plin':'Yape';
       det=`<div class="vuelto">El cliente hace el ${n} de <b class="money">${money(total)}</b> y envía la captura por WhatsApp para confirmar su pedido. ${rec?'Al recoger no se le cobra nada.':'La moto no le cobra nada al entregar.'}</div>`;
     }
-    return det;
+    return aviso+det;
 }
 function sheetWiz(){
   const d=draft;
@@ -799,14 +871,14 @@ function sheetWiz(){
       <div class="field"><label for="w-env">Costo de delivery (S/)</label><input id="w-env" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${c.envio??''}"></div></div>
       <p class="note" style="margin:0">Puede poner el costo ahora o en el paso de pago, cuando ya vea el tamaño del pedido.</p>
       <p class="note" style="margin:0">Pruebe con un teléfono de ejemplo: <span class="num">987654321</span> o <span class="num">912345678</span>.</p>`;
-    paint(head('Nuevo pedido','Datos del cliente')+stepsHtml(1)+`<div class="sh-body">${modo}<div class="w1"><div class="w1-a">${campos}</div><div class="w1-b tk-lado" id="ticket">${ticketHtml(d)}</div></div><p class="err" id="w-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn primary" data-act="wzNext">Siguiente: productos →</button></div>`);
+    paint(head(d.editId?tituloWiz(d):'Nuevo pedido','Datos del cliente')+stepsHtml(1)+`<div class="sh-body">${d.editId?'':modo}<div class="w1"><div class="w1-a">${campos}</div><div class="w1-b tk-lado" id="ticket">${ticketHtml(d)}</div></div><p class="err" id="w-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn primary" data-act="wzNext">Siguiente: productos →</button></div>`);
   } else if(d.paso===2){
     const count=draftCount(d),t=draftSub(d)+envioD(d);
     paint(head(tituloWiz(d),'Elige los productos')+stepsHtml(2)+`<div class="sh-body b2" data-v="${bview}"><div class="b2-menu">${chipsHtml()}<div class="b2-list" data-scroll="m">${prodsHtml(d)}</div></div><div class="b2-cart" data-scroll="c2">${ticketHtml(d)}</div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Cliente</button><button class="btn only-phone" data-act="bview" data-v="${bview==='menu'?'cart':'menu'}">${bview==='menu'?`Ver pedido (${count}) · ${money(t)}`:'← Volver a productos'}</button><button class="btn primary" data-act="wzNext" ${count?'':'disabled'}>Siguiente: pago →</button></div>`);
   } else {
     const p=d.pagoSel,rec=d.tipo==='recoger';
     const metodos=[['efectivo','Efectivo'],['yape-pagado','Yape'],['tarjeta','Tarjeta'],['plin-pagado','Plin'],['mixto','Ambos<small>Efectivo + Yape/Plin</small>']];
-    paint(head(tituloWiz(d),'¿Con qué va a pagar?')+stepsHtml(3)+`<div class="sh-body"><div class="w1"><div class="w1-a">${rec?'':`<div class="field"><label for="w-env3">Costo de delivery (S/)</label><input id="w-env3" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${d.cliente.envio??''}"></div>`}<div class="pay">${metodos.map(([k,t])=>`<button class="btn ${p===k?'primary':''} ${k==='mixto'?'mx':''}" data-act="wzPago" data-p="${k}" aria-pressed="${p===k}">${t}</button>`).join('')}</div><div class="mix" id="w-det">${detPago(d)}</div><p class="err" id="w-err" hidden></p></div><div class="w1-b" id="ticket">${ticketHtml(d)}</div></div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Productos</button><button class="btn primary" data-act="wzSend">Confirmar y enviar a cocina</button></div>`);
+    paint(head(tituloWiz(d),'¿Con qué va a pagar?')+stepsHtml(3)+`<div class="sh-body"><div class="w1"><div class="w1-a">${rec?'':`<div class="field"><label for="w-env3">Costo de delivery (S/)</label><input id="w-env3" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${d.cliente.envio??''}"></div>`}<div class="pay">${metodos.map(([k,t])=>`<button class="btn ${p===k?'primary':''} ${k==='mixto'?'mx':''}" data-act="wzPago" data-p="${k}" aria-pressed="${p===k}">${t}</button>`).join('')}</div><div class="mix" id="w-det">${detPago(d)}</div><p class="err" id="w-err" hidden></p></div><div class="w1-b" id="ticket">${ticketHtml(d)}</div></div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Productos</button><button class="btn primary" data-act="wzSend">${d.editId?'Guardar cambios':'Confirmar y enviar a cocina'}</button></div>`);
   }
 }
 function wizLeerCliente(){
@@ -848,6 +920,14 @@ const err=(id,t)=>{const el=$(id);el.textContent=t;el.hidden=false};
 function readNeg(){
   if(!negDraft||!$('#n-nom'))return;
   negDraft.nombre=$('#n-nom').value;negDraft.mesas=$('#n-mesas').value;
+}
+function guardarEdicion(d,cliente,envio){
+  const p=find(d.editId);
+  if(!p||!editable(p)){closeSheet();commit('Ese ticket ya no se puede editar: cambió de estado.');return}
+  const antes=p.items;
+  p.items=d.items;p.cliente=cliente;p.envio=envio;
+  const msg=marcarEdicion(p,antes);
+  closeSheet();commit(msg);
 }
 const ACT={
   nav:d=>{view=d.v;closeSheet();render();window.scrollTo(0,0)},
@@ -906,6 +986,7 @@ const ACT={
     if(d.pagoSel==='mixto'){const msg=mixError(total,d.tipo!=='recoger');if(msg)return err('#w-err',msg)}
     const datosMix=d.pagoSel==='mixto'?{mixto:mix.otro,mixtoMonto:parseFloat(mix.monto)}:{};
     if(d.tipo==='recoger'){
+      if(d.editId)return guardarEdicion(d,{nombre:d.cliente.nombre,pago:d.pagoSel,pagaCon:0,...datosMix},0);
       S.seq++;
       const p={id:uid('p'),n:S.seq,tipo:'recoger',items:d.items,cliente:{nombre:d.cliente.nombre,pago:d.pagoSel,pagaCon:0,...datosMix},envio:0,estado:'nuevo',creado:Date.now(),pagado:false};
       S.pedidos.push(p);closeSheet();
@@ -914,8 +995,9 @@ const ACT={
     }
     const con=parseFloat(d.pagaCon);
     if(d.pagoSel==='efectivo'&&!(con>=total))return err('#w-err','Escriba con cuánto va a pagar: debe cubrir el total de '+money(total)+'.');
-    S.seq++;
     const c=Object.assign({},d.cliente,{pago:d.pagoSel,pagaCon:d.pagoSel==='efectivo'?con:d.pagoSel==='mixto'?parseFloat(mix.con):0},datosMix);
+    if(d.editId)return guardarEdicion(d,c,c.envio);
+    S.seq++;
     const p={id:uid('p'),n:S.seq,tipo:'delivery',items:d.items,cliente:c,envio:c.envio,estado:'nuevo',creado:Date.now(),pagado:false};
     const {pago,pagaCon,mixto,mixtoMonto,envio,zona,zonaN,...guardar}=c;S.clientes[c.cel]=guardar;
     S.pedidos.push(p);closeSheet();
@@ -934,6 +1016,33 @@ const ACT={
     prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
     pop={pid:m.id,precio:i.precio,sel,cant:i.cant,nota:i.nota||'',editK:k};popPintar();$('#pop').hidden=false;
     if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus();
+  },
+  tkFiltro:d=>{ticketFiltro=d.f;render()},
+  tkEdit:d=>{
+    const p=find(d.id);
+    if(!p||!editable(p)){toast('Ese ticket ya no se puede editar.');render();return}
+    const items=clone(p.items);mix=mixVacio();
+    if(p.tipo==='delivery'||p.tipo==='recoger'){
+      const {pago,pagaCon,mixto,mixtoMonto,...datos}=clone(p.cliente);
+      if(pago==='mixto')mix={otro:mixto,monto:String(mixtoMonto),con:pagaCon?String(pagaCon):''};
+      draft={tipo:p.tipo,paso:2,cliente:datos,items,pagoSel:pago,pagaCon:pago==='efectivo'&&pagaCon?String(pagaCon):'',editId:p.id,antes:tot(p)};
+      bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetWiz);
+    } else {
+      const base={tipo:p.tipo,items,editId:p.id,antes:tot(p)};
+      if(p.tipo==='mesa')base.mesa=p.mesa;
+      if(p.tipo==='llevar'){
+        base.nombreLlevar=p.cliente.nombre;base.metodoLlevar=p.pagos?'Mixto':p.metodo;
+        if(p.pagos){const o=p.pagos.find(x=>x.m!=='Efectivo');if(o)mix={otro:o.m,monto:String(o.monto),con:''}}
+      }
+      startBuilder(base);bview='cart';redraw();
+    }
+  },
+  tkAnular:(d,b)=>{
+    if(!armed(b))return;
+    const p=find(d.id);if(!p||!editable(p)){render();return}
+    const cobrado=p.pagado||(p.cliente&&/-pagado$/.test(p.cliente.pago||''))||(p.cliente&&p.cliente.pago==='mixto');
+    S.pedidos=S.pedidos.filter(x=>x.id!==p.id);p.anulado=true;p.anuladoEn=Date.now();S.anulados.push(p);
+    commit('Ticket '+num(p)+' anulado'+(cobrado?'. Si ya pagó, devuélvale el dinero.':''));
   },
   popClose:()=>popCerrar(),
   popSel:d=>{pop.sel[d.g]=d.v;popPintar()},
@@ -954,6 +1063,13 @@ const ACT={
   send:()=>{
     const d=draft;
     if(d.tipo==='llevar'){d.nombreLlevar=$('#l-nom').value.trim();d.metodoLlevar=$('#l-met').value;if(!d.nombreLlevar)return err('#l-err','Escriba el nombre del cliente para llamarlo cuando esté listo.');if(d.metodoLlevar==='Mixto'){const msg=mixError(draftSub(d),true);if(msg)return err('#l-err',msg)}}
+    if(d.editId){
+      const p=find(d.editId);
+      if(!p||!editable(p)){closeSheet();commit('Ese ticket ya no se puede editar: cambió de estado.');return}
+      const antes=p.items;p.items=d.items;
+      if(d.tipo==='llevar'){p.cliente={nombre:d.nombreLlevar};delete p.pagos;p.metodo=d.metodoLlevar;if(d.metodoLlevar==='Mixto'){p.pagos=pagosMix(mix.otro,parseFloat(mix.monto),tot(p));p.metodo=metodoDePagos(p.pagos)}}
+      const msg=marcarEdicion(p,antes);closeSheet();commit(msg);return;
+    }
     S.seq++;
     const p={id:uid('p'),n:S.seq,tipo:d.tipo,items:d.items,envio:0,estado:'nuevo',creado:Date.now(),pagado:false};
     if(d.tipo==='mesa'){p.mesa=d.mesa;S.cuenta[d.mesa]=false;delete S.reservas[d.mesa]}
@@ -961,7 +1077,7 @@ const ACT={
     S.pedidos.push(p);closeSheet();commit(`Pedido ${num(p)} enviado a cocina`);
   },
   kStart:d=>{const p=find(d.id);p.estado='preparando';p.empezoEn=Date.now();commit()},
-  kReady:d=>{const p=find(d.id);p.estado='listo';p.listoEn=Date.now();commit('Pedido '+num(p)+' listo')},
+  kReady:d=>{const p=find(d.id);p.estado='listo';p.listoEn=Date.now();if(p.editado)p.editado.cocina=false;commit('Pedido '+num(p)+' listo')},
   msel:d=>{motoSel.has(d.id)?motoSel.delete(d.id):motoSel.add(d.id);render()},
   salir:()=>{const n=motoSel.size;motoSel.forEach(id=>{const p=find(id);if(p){p.estado='en_camino';p.salioEn=Date.now()}});motoSel.clear();commit(`La moto salió con ${n} pedido${n>1?'s':''}`)},
   entregar:d=>{const p=find(d.id),pg=p.cliente.pago;p.estado='entregado';p.entregadoEn=Date.now();p.pagado=true;p.pagadoEn=Date.now();if(pg==='mixto'){p.pagos=pagosMix(p.cliente.mixto,+p.cliente.mixtoMonto,tot(p));p.metodo=metodoDePagos(p.pagos)}else p.metodo=METODO_DE[pg];if((pg==='efectivo'||pg==='mixto')&&p.tipo==='delivery')p.rendido=false;if(sheetFn&&!d.keep)closeSheet();commit('Pedido '+num(p)+' entregado')},
@@ -1026,6 +1142,7 @@ document.addEventListener('input',e=>{
       draft.frecuente=true;redraw();
     }
   }
+  if(t.id==='tk-busca'){ticketBusca=t.value;$('#tk-list').innerHTML=ticketsLista()}
   if(t.id==='pop-nota'&&pop)pop.nota=t.value;
   if(t.id==='mx-monto'||t.id==='mx-con'){mix[t.id==='mx-monto'?'monto':'con']=t.value;$('#mix-res').innerHTML=mixRes();$('#mx-efe').value=mixEfectivo();tkRefrescar()}
   if(t.id==='w-con'){draft.pagaCon=t.value;tkRefrescar();$('#w-vuelto').innerHTML=vueltoHtml(draftSub(draft)+envioD(draft),t.value)}
