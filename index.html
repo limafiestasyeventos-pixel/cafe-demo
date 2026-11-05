@@ -13,7 +13,7 @@
   --bg:#FBF6EC; --surface:#FFFFFF; --ink:#13235B; --muted:#5D678E; --line:#E6DDCA;
   --brand:#1239A6; --on-brand:#FFFFFF; --soft:#E6ECFF;
   --ok:#1D7F46; --ok-soft:#DCF2E4; --warn:#9A5B00; --warn-soft:#FCEBCB; --bad:#B8302A; --bad-soft:#FBE0DD;
-  --shade:rgba(19,35,91,.08); --scrim:rgba(10,16,40,.45);
+  --shade:rgba(19,35,91,.08); --scrim:rgba(10,16,40,.45); --tk-head:#13235B; --tk-on:#FFFFFF;
   --f-display:"Bricolage Grotesque","Poppins",system-ui,sans-serif;
   --f-body:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
@@ -21,12 +21,12 @@
   --bg:#0E1326; --surface:#161D36; --ink:#EEF1FF; --muted:#9BA5CA; --line:#283157;
   --brand:#7C97FF; --on-brand:#0B1020; --soft:#1E2852;
   --ok:#55C88A; --ok-soft:#14352A; --warn:#F2B04A; --warn-soft:#3A2B10; --bad:#FF8076; --bad-soft:#401A17;
-  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); color-scheme:dark}}
+  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); --tk-head:#2A3A86; --tk-on:#FFFFFF; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1326; --surface:#161D36; --ink:#EEF1FF; --muted:#9BA5CA; --line:#283157;
   --brand:#7C97FF; --on-brand:#0B1020; --soft:#1E2852;
   --ok:#55C88A; --ok-soft:#14352A; --warn:#F2B04A; --warn-soft:#3A2B10; --bad:#FF8076; --bad-soft:#401A17;
-  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); color-scheme:dark}
+  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); --tk-head:#2A3A86; --tk-on:#FFFFFF; color-scheme:dark}
 
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
@@ -200,7 +200,7 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .hint{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:500}
 .pay{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .pay .btn{min-height:64px;font-size:16px}
-.pay .btn.mx{grid-column:1/-1}
+.pay .btn.mx{grid-column:1/-1;flex-direction:column;gap:1px;line-height:1.2}
 .mix{display:grid;gap:10px}
 
 /* Delivery en 3 pasos */
@@ -217,12 +217,26 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .modo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:520px;margin-bottom:14px}
 .modo .btn{flex-direction:column;gap:2px;min-height:64px;font-size:16px;line-height:1.2}
 .modo small{font-size:12px;font-weight:400;opacity:.85}
-.tk{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
-.tk-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px dashed var(--line)}
-.tk-cli{display:grid;gap:1px;overflow-wrap:anywhere}
-.tk-cli b{font-size:16px}
+.tk{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.tk-head{background:var(--tk-head);color:var(--tk-on);padding:14px 16px;display:grid;gap:2px;overflow-wrap:anywhere}
+.tk-eb{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+.tk-name{font-family:var(--f-display);font-size:23px;font-weight:800;line-height:1.15;letter-spacing:-.01em}
+.tk-det{font-size:13px;opacity:.88}
+.tk-items{padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.tk-line{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:6px;min-width:0}
+.tk-row{display:flex;align-items:center;gap:8px}
+.tk-row .money{margin-left:auto;font-weight:600;color:var(--warn)}
+.tk-del{background:none;border:0;padding:4px 6px;color:var(--bad);font-size:14px;line-height:1;border-radius:6px}
+.tk-line input{font-size:13px;padding:6px 10px;min-height:0}
+.tk-foot{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:8px}
+.tk-sum{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--muted)}
+.tk-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tk-total span{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tk-total b{font-family:var(--f-display);font-size:30px;font-weight:800;line-height:1.1;white-space:nowrap}
+#tk-tot{display:grid;gap:6px}
+.pay .mx small{display:block;font-size:11px;font-weight:400;opacity:.85}
+.mix input[readonly]{background:var(--bg);color:var(--muted)}
 .tk-vacio{color:var(--muted);font-size:13px;padding:6px 0}
-.tk-pago{display:flex;justify-content:space-between;gap:8px;font-size:14px;border-top:1px dashed var(--line);padding-top:8px}
 @media (max-width:859px){.tk-lado{display:none}}
 .vuelto{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:12px 14px}
 .vuelto .big{font-family:var(--f-display);font-size:22px;font-weight:800;color:var(--warn)}
@@ -247,7 +261,13 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
   .b2-list .prod{padding:8px 8px 8px 12px}
   .b2-list .add{width:38px;height:38px}
   .b2[data-v] .b2-cart,.b2[data-v] .b2-menu{display:flex}
-  .b2-cart{border-left:1px solid var(--line);padding-left:18px}
+  .b2-cart{overflow:hidden}
+  .b2-cart .tk{flex:1;min-height:0}
+  .b2-cart .tk-items{flex:1;overflow:auto}
+  .panel.wide .w1-b{position:sticky;top:0}
+  .panel.wide .pay{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .panel.wide .pay .btn{min-height:58px;font-size:15px}
+  .panel.wide .pay .btn.mx{grid-column:auto}
   .only-phone{display:none}
   .sh-foot{justify-content:flex-end}
   .panel.wide .sh-foot .btn{flex:0 1 auto;min-width:170px}
@@ -608,7 +628,7 @@ function sheetMesa(n){return()=>{
 function sheetCobrar(n){return()=>{
   const m=mesaInfo(n);
   if(!m.ps.length){closeSheet();return}
-  paint(head('Mesa '+n+' · cobrar',money(m.total))+`<div class="sh-body"><p class="note" style="margin:0">¿Cómo pagó el cliente? Al elegir, la mesa queda libre.</p><div class="pay">${METODOS.map(x=>`<button class="btn" data-act="pagar" data-n="${n}" data-m="${x}">${x}</button>`).join('')}<button class="btn mx" data-act="cobrarMix" data-n="${n}">Mixto (efectivo + Yape o Plin)</button></div>${m.ps.map(itemsHtml).join('')}</div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver a la mesa</button></div>`);
+  paint(head('Mesa '+n+' · cobrar',money(m.total))+`<div class="sh-body"><p class="note" style="margin:0">¿Cómo pagó el cliente? Al elegir, la mesa queda libre.</p><div class="pay">${METODOS.map(x=>`<button class="btn" data-act="pagar" data-n="${n}" data-m="${x}">${x}</button>`).join('')}<button class="btn mx" data-act="cobrarMix" data-n="${n}">Ambos<small>Efectivo + Yape/Plin</small></button></div>${m.ps.map(itemsHtml).join('')}</div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver a la mesa</button></div>`);
 }}
 function sheetCobrarMix(n){return()=>{
   const m=mesaInfo(n);
@@ -652,7 +672,7 @@ function sheetBuilder(){
   if(bview==='menu'){
     paint(head(eb,'Elige productos')+chipsHtml()+`<div class="sh-body">${prodsHtml(d)}</div><div class="sh-foot"><button class="btn primary" data-act="bview" data-v="cart" ${count?'':'disabled'}>${count?`Revisar pedido · ${count} producto${count>1?'s':''} · ${money(st)}`:'Toca + para agregar productos'}</button></div>`);
   } else {
-    const extra=d.tipo==='llevar'?`<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Mixto (efectivo + Yape o Plin)</option></select></div></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
+    const extra=d.tipo==='llevar'?`<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Ambos (efectivo + Yape o Plin)</option></select></div></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
     paint(head(eb,'Revisar pedido')+`<div class="sh-body">${linesHtml(d)}${extra}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(st)}</span></div></div></div><div class="sh-foot"><button class="btn ghost" data-act="bview" data-v="menu">← Agregar más</button><button class="btn primary" data-act="send">Enviar a cocina</button></div>`);
   }
 }
@@ -662,28 +682,36 @@ function startBuilder(d){draft=Object.assign({items:[]},d);bcat=(S.cats[0]||{}).
 const stepsHtml=n=>`<ol class="steps">${['Cliente','Productos','Pago'].map((t,i)=>`<li class="${i+1===n?'on':i+1<n?'done':''}" ${i+1===n?'aria-current="step"':''}><span>${i+1<n?'✓':i+1}</span>${t}</li>`).join('')}</ol>`;
 const envioD=d=>d.tipo==='recoger'?0:(d.cliente.envio||0);
 const tituloWiz=d=>d.tipo==='recoger'?'Nuevo pedido para recoger':'Nuevo delivery';
+const vueltoD=d=>{
+  if(d.tipo==='recoger')return null;
+  const tt=draftSub(d)+envioD(d);
+  if(d.pagoSel==='efectivo'){const c=parseFloat(d.pagaCon);return c>=tt?r2(c-tt):null}
+  if(d.pagoSel==='mixto'){const m=parseFloat(mix.monto),c=parseFloat(mix.con);if(!(m>0)||m>=tt)return null;const e=r2(tt-m);return c>=e?r2(c-e):null}
+  return null;
+};
 function totalesHtml(d){
-  const st=draftSub(d),e=envioD(d);
-  if(d.tipo==='recoger')return `<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(st)}</span></div></div>`;
-  const v=d.cliente.envio;
-  return `<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(st)}</span></div><div class="spread"><span>Delivery</span><span class="money">${v===undefined?'Por definir':v===0?'Gratis':money(e)}</span></div><div class="spread"><span>Total</span><span class="money">${money(st+e)}</span></div></div>`;
+  const st=draftSub(d),e=envioD(d),v=d.cliente.envio,vu=d.paso===3?vueltoD(d):null;
+  const nomPago=!d.pagoSel?'':d.pagoSel==='mixto'?'Efectivo + '+mix.otro:METODO_DE[d.pagoSel];
+  return `${d.tipo==='recoger'?'':`<div class="tk-sum"><span>Productos</span><span class="money">${money(st)}</span></div><div class="tk-sum"><span>Delivery</span><span class="money">${v===undefined?'Por definir':v===0?'Gratis':money(e)}</span></div>`}<div class="tk-total"><span>Total</span><b>${money(st+e)}</b></div>${d.paso===3&&nomPago?`<div class="tk-sum"><span>Pago</span><span>${nomPago}</span></div>`:''}${vu!==null?`<div class="tk-sum"><span>Vuelto</span><span class="money">${money(vu)}</span></div>`:''}`;
 }
+const tkLineas=d=>d.items.map((i,k)=>`<div class="tk-line"><div class="pn">${esc(i.nombre)}${i.op?` <span class="meta">(${esc(i.op)})</span>`:''}</div><div class="tk-row"><div class="qty"><button data-act="qty" data-k="${k}" data-d="-1" aria-label="Quitar uno">−</button><span>${i.cant}</span><button data-act="qty" data-k="${k}" data-d="1" aria-label="Agregar uno">+</button></div><span class="money">${money(i.precio*i.cant)}</span><button class="tk-del" data-act="qtyDel" data-k="${k}" aria-label="Quitar ${esc(i.nombre)} del pedido">✕</button></div><input data-nota="${k}" placeholder="Nota para cocina (opcional)" value="${esc(i.nota)}" aria-label="Nota para cocina"></div>`).join('');
 function ticketHtml(d){
-  const c=d.cliente,rec=d.tipo==='recoger';
-  return `<div class="tk"><div class="tk-top"><b>${esc(negocio())}</b><span class="meta">Ticket digital · ${rec?'Recoger':'Delivery'}</span></div><div class="tk-cli"><span class="meta">Cliente</span><b>${c.nombre?esc(c.nombre):'Aún sin nombre'}</b>${rec?'<span class="meta">Pasa a recoger por el local</span>':`${c.cel?`<span class="meta num">${esc(c.cel)}</span>`:''}${c.dir?`<span class="meta">${esc(c.dir)}</span>`:''}${c.ref?`<span class="meta">${esc(c.ref)}</span>`:''}`}</div>${d.items.length?itemsHtml(d):'<div class="tk-vacio">Los productos aparecerán aquí.</div>'}<div id="tk-tot">${totalesHtml(d)}</div>${d.paso===3&&d.pagoSel?`<div class="tk-pago"><span>Pago</span><b>${d.pagoSel==='mixto'?'Mixto':METODO_DE[d.pagoSel]}</b></div>`:''}</div>`;
+  const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?'<div class="tk-det">Pasa a recoger por el local</div>':`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(c.dir)}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
+  return `<div class="tk"><div class="tk-head"><div class="tk-eb">Ticket · ${rec?'Recoger':'Delivery'}</div><div class="tk-name">${c.nombre?esc(c.nombre):'Cliente sin nombre'}</div>${det}</div><div class="tk-items" data-scroll="c">${d.items.length?tkLineas(d):'<div class="tk-vacio">Los productos aparecerán aquí.</div>'}</div><div class="tk-foot">${d.paso===2&&!rec?`<div class="field"><label for="w-env2">Costo de delivery (S/)</label><input id="w-env2" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${c.envio??''}"></div>`:''}<div id="tk-tot">${totalesHtml(d)}</div>${d.paso===2?'<p class="err" id="w-err" hidden></p>':''}</div></div>`;
 }
 function tkRefrescar(){
-  const el=$('#ticket');
-  if(el){el.innerHTML=ticketHtml(draft);return}
+  if(!draft||!draft.cliente)return;
+  if(draft.paso===1){const el=$('#ticket');if(el)el.innerHTML=ticketHtml(draft);return}
   const tt=$('#tk-tot');if(tt)tt.innerHTML=totalesHtml(draft);
 }
+const mixEfectivo=()=>{const m=parseFloat(mix.monto);return m>0&&m<mixCtx.total?money(r2(mixCtx.total-m)):''};
 function mixHtml(total,ctx){
   mixCtx={total,ctx};
-  return `<div class="mix"><div class="row" role="group" aria-label="Pago digital">${['Yape','Plin'].map(o=>`<button class="btn small ${mix.otro===o?'primary':''}" data-act="mixOtro" data-o="${o}" aria-pressed="${mix.otro===o}">${o}</button>`).join('')}</div><div class="two"><div class="field"><label for="mx-monto">¿Cuánto paga con ${mix.otro}? (S/)</label><input id="mx-monto" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(mix.monto)}"></div>${ctx==='recoger'?'':`<div class="field"><label for="mx-con">¿Con cuánto paga el efectivo? (S/)</label><input id="mx-con" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(mix.con)}"></div>`}</div><div class="vuelto" id="mix-res">${mixRes()}</div></div>`;
+  return `<div class="mix"><div class="row" role="group" aria-label="Pago digital">${['Yape','Plin'].map(o=>`<button class="btn small ${mix.otro===o?'primary':''}" data-act="mixOtro" data-o="${o}" aria-pressed="${mix.otro===o}">${o}</button>`).join('')}</div><div class="two"><div class="field"><label for="mx-monto">Paga por ${mix.otro} (S/)</label><input id="mx-monto" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(mix.monto)}"></div><div class="field"><label for="mx-efe">En efectivo</label><input id="mx-efe" readonly tabindex="-1" placeholder="Se calcula solo" value="${mixEfectivo()}"></div></div>${ctx==='recoger'?'':`<div class="field"><label for="mx-con">Paga con, en efectivo (S/)</label><input id="mx-con" type="number" min="0" step="0.5" inputmode="decimal" value="${esc(mix.con)}"></div>`}<div class="vuelto" id="mix-res">${mixRes()}</div></div>`;
 }
 function mixRes(){
   const {total,ctx}=mixCtx,o=mix.otro,m=parseFloat(mix.monto);
-  if(mix.monto==='')return `<span class="note">Escriba cuánto paga con ${o}: el resto en efectivo se calcula solo.</span>`;
+  if(mix.monto==='')return `<span class="note">Escriba cuánto paga por ${o}: el resto en efectivo se calcula solo.</span>`;
   if(!(m>0))return '<span class="err">Escriba un monto válido.</span>';
   if(m>=total)return `<span class="err">Debe ser menor que el total de ${money(total)}. Si paga todo con ${o}, elija ${o}.</span>`;
   const e=r2(total-m),mo=`<b class="money">${money(m)}</b>`,ef=`<b class="money">${money(e)}</b>`;
@@ -725,10 +753,10 @@ function sheetWiz(){
     paint(head('Nuevo pedido','Datos del cliente')+stepsHtml(1)+`<div class="sh-body">${modo}<div class="w1"><div class="w1-a">${campos}</div><div class="w1-b tk-lado" id="ticket">${ticketHtml(d)}</div></div><p class="err" id="w-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn primary" data-act="wzNext">Siguiente: productos →</button></div>`);
   } else if(d.paso===2){
     const count=draftCount(d),t=draftSub(d)+envioD(d);
-    paint(head(tituloWiz(d),'Elige los productos')+stepsHtml(2)+`<div class="sh-body b2" data-v="${bview}"><div class="b2-menu">${chipsHtml()}<div class="b2-list" data-scroll="m">${prodsHtml(d)}</div></div><div class="b2-cart" data-scroll="c"><div class="tk-cli"><span class="meta">Cliente</span><b>${esc(d.cliente.nombre)}</b></div>${count?linesHtml(d):'<div class="empty">Aún no hay productos. Toque + para agregar.</div>'}${d.tipo==='recoger'?'':`<div class="field"><label for="w-env2">Costo de delivery (S/)</label><input id="w-env2" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${d.cliente.envio??''}"></div>`}<div id="tk-tot">${totalesHtml(d)}</div><p class="err" id="w-err" hidden></p></div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Cliente</button><button class="btn only-phone" data-act="bview" data-v="${bview==='menu'?'cart':'menu'}">${bview==='menu'?`Ver pedido (${count}) · ${money(t)}`:'← Volver a productos'}</button><button class="btn primary" data-act="wzNext" ${count?'':'disabled'}>Siguiente: pago →</button></div>`);
+    paint(head(tituloWiz(d),'Elige los productos')+stepsHtml(2)+`<div class="sh-body b2" data-v="${bview}"><div class="b2-menu">${chipsHtml()}<div class="b2-list" data-scroll="m">${prodsHtml(d)}</div></div><div class="b2-cart" data-scroll="c2">${ticketHtml(d)}</div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Cliente</button><button class="btn only-phone" data-act="bview" data-v="${bview==='menu'?'cart':'menu'}">${bview==='menu'?`Ver pedido (${count}) · ${money(t)}`:'← Volver a productos'}</button><button class="btn primary" data-act="wzNext" ${count?'':'disabled'}>Siguiente: pago →</button></div>`);
   } else {
     const total=draftSub(d)+envioD(d),p=d.pagoSel,rec=d.tipo==='recoger';
-    const metodos=[['efectivo','Efectivo'],['yape-pagado','Yape'],['tarjeta','Tarjeta'],['plin-pagado','Plin'],['mixto','Mixto (efectivo + Yape o Plin)']];
+    const metodos=[['efectivo','Efectivo'],['yape-pagado','Yape'],['tarjeta','Tarjeta'],['plin-pagado','Plin'],['mixto','Ambos<small>Efectivo + Yape/Plin</small>']];
     let det='<span class="note">Elija cómo va a pagar el cliente.</span>';
     if(p==='mixto'){
       det=mixHtml(total,rec?'recoger':'delivery');
@@ -864,7 +892,8 @@ const ACT={
   cat:d=>{bcat=d.c;redraw()},
   add:d=>{const m=S.menu.find(x=>x.id===d.pid),op=d.op||'';if(!m||m.agotado)return;const ex=draft.items.find(i=>i.pid===m.id&&i.op===op);if(ex)ex.cant++;else draft.items.push({pid:m.id,nombre:m.nombre,precio:m.precio,cant:1,nota:'',op});paint.keep=true;redraw();toast(m.nombre+(op?' ('+op+')':'')+' agregado')},
   bview:d=>{if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}bview=d.v;redraw()},
-  qty:d=>{const i=draft.items[+d.k];i.cant+=+d.d;if(i.cant<=0)draft.items.splice(+d.k,1);if(!draft.items.length)bview='menu';if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
+  qty:d=>{const i=draft.items[+d.k];i.cant+=+d.d;if(i.cant<=0)draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
+  qtyDel:d=>ACT.qty({k:d.k,d:-draft.items[+d.k].cant}),
   send:()=>{
     const d=draft;
     if(d.tipo==='llevar'){d.nombreLlevar=$('#l-nom').value.trim();d.metodoLlevar=$('#l-met').value;if(!d.nombreLlevar)return err('#l-err','Escriba el nombre del cliente para llamarlo cuando esté listo.');if(d.metodoLlevar==='Mixto'){const msg=mixError(draftSub(d),true);if(msg)return err('#l-err',msg)}}
@@ -939,8 +968,8 @@ document.addEventListener('input',e=>{
       draft.frecuente=true;redraw();
     }
   }
-  if(t.id==='mx-monto'||t.id==='mx-con'){mix[t.id==='mx-monto'?'monto':'con']=t.value;$('#mix-res').innerHTML=mixRes()}
-  if(t.id==='w-con'){draft.pagaCon=t.value;$('#w-vuelto').innerHTML=vueltoHtml(draftSub(draft)+draft.cliente.envio,t.value)}
+  if(t.id==='mx-monto'||t.id==='mx-con'){mix[t.id==='mx-monto'?'monto':'con']=t.value;$('#mix-res').innerHTML=mixRes();$('#mx-efe').value=mixEfectivo();tkRefrescar()}
+  if(t.id==='w-con'){draft.pagaCon=t.value;tkRefrescar();$('#w-vuelto').innerHTML=vueltoHtml(draftSub(draft)+envioD(draft),t.value)}
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='l-met'&&draft){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=e.target.value;paint.keep=true;redraw()}
