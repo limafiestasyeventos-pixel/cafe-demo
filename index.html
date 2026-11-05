@@ -221,7 +221,7 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .tk-name{font-family:var(--f-display);font-size:23px;font-weight:800;line-height:1.15;letter-spacing:-.01em}
 .tk-det{font-size:13px;opacity:.88}
 .tk-items{padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0}
-.tk-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:8px;align-items:start;padding:7px 0;border-bottom:1px dashed var(--line);overflow-wrap:anywhere}
+.tk-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;gap:6px;align-items:start;padding:7px 0;border-bottom:1px dashed var(--line);overflow-wrap:anywhere}
 .tk-line:last-child{border-bottom:0}
 .tk-q{font-weight:600;font-variant-numeric:tabular-nums}
 .tk-line .meta{font-size:12.5px}
@@ -238,7 +238,11 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .pop-foot .btn{flex:0 1 auto}
 .chk{display:flex;align-items:center;gap:8px;font-size:14px}
 .chk input{width:18px;height:18px;margin:0;flex:none}
-.tk-del{background:none;border:0;padding:4px 6px;color:var(--bad);font-size:14px;line-height:1;border-radius:6px}
+.tk-del,.tk-edit{background:none;border:0;padding:0;width:30px;height:30px;margin-top:-5px;display:grid;place-items:center;font-size:14px;line-height:1;border-radius:8px}
+.tk-del{color:var(--bad)}
+.tk-edit{color:var(--brand)}
+.tk-edit svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tk-del:hover,.tk-edit:hover{background:var(--soft)}
 .tk-foot{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:8px}
 .tk-sum{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--muted)}
 .tk-total{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
@@ -687,7 +691,7 @@ function prodGrupos(m){
 }
 function popPintar(){
   const m=S.menu.find(x=>x.id===pop.pid),c=S.cats.find(x=>x.id===m.cat)||{};
-  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(m.precio)}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}<div class="field"><label for="pop-nota">Nota para cocina (opcional)</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">Agregar · ${money(m.precio*pop.cant)}</button></div>`;
+  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(pop.precio)}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}<div class="field"><label for="pop-nota">Nota para cocina (opcional)</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">${pop.editK!==undefined?'Guardar':'Agregar'} · ${money(pop.precio*pop.cant)}</button></div>`;
 }
 function popCerrar(){pop=null;$('#pop').hidden=true;$('#pop-box').innerHTML=''}
 const draftSub=d=>d.items.reduce((a,i)=>a+i.precio*i.cant,0);
@@ -721,7 +725,7 @@ function totalesHtml(d){
   const nomPago=!d.pagoSel?'':d.pagoSel==='mixto'?'Efectivo + '+mix.otro:METODO_DE[d.pagoSel];
   return `${d.tipo==='recoger'?'':`<div class="tk-sum"><span>Productos</span><span class="money">${money(st)}</span></div><div class="tk-sum"><span>Delivery</span><span class="money">${v===undefined?'Por definir':v===0?'Gratis':money(e)}</span></div>`}<div class="tk-total"><span>Total</span><b>${money(st+e)}</b></div>${d.paso===3&&nomPago?`<div class="tk-sum"><span>Pago</span><span>${nomPago}</span></div>`:''}${vu!==null?`<div class="tk-sum"><span>Vuelto</span><span class="money">${money(vu)}</span></div>`:''}`;
 }
-const tkLineas=d=>d.items.map((i,k)=>`<div class="tk-line"><span class="tk-q">${i.cant}×</span><div><div class="pn">${esc(i.nombre)}</div>${i.op?`<div class="meta">${esc(i.op)}</div>`:''}${i.nota?`<div class="meta">Nota: ${esc(i.nota)}</div>`:''}</div><span class="money">${money(i.precio*i.cant)}</span><button class="tk-del" data-act="qtyDel" data-k="${k}" aria-label="Eliminar ${esc(i.nombre)} del pedido">✕</button></div>`).join('');
+const tkLineas=d=>d.items.map((i,k)=>`<div class="tk-line"><span class="tk-q">${i.cant}×</span><div><div class="pn">${esc(i.nombre)}</div>${i.op?`<div class="meta">${esc(i.op)}</div>`:''}${i.nota?`<div class="meta">Nota: ${esc(i.nota)}</div>`:''}</div><span class="money">${money(i.precio*i.cant)}</span><button class="tk-edit" data-act="popEdit" data-k="${k}" title="Editar" aria-label="Editar ${esc(i.nombre)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><button class="tk-del" data-act="qtyDel" data-k="${k}" aria-label="Eliminar ${esc(i.nombre)} del pedido">✕</button></div>`).join('');
 function ticketHtml(d){
   const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?'<div class="tk-det">Pasa a recoger por el local</div>':`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(c.dir)}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
   return `<div class="tk"><div class="tk-head"><div class="tk-eb">Ticket · ${rec?'Recoger':'Delivery'}</div><div class="tk-name">${c.nombre?esc(c.nombre):'Cliente sin nombre'}</div>${det}</div><div class="tk-items" data-scroll="c">${d.items.length?tkLineas(d):'<div class="tk-vacio">Los productos aparecerán aquí.</div>'}</div><div class="tk-foot"><div id="tk-tot">${totalesHtml(d)}</div></div></div>`;
@@ -921,7 +925,16 @@ const ACT={
   cat:d=>{bcat=d.c;redraw()},
   bview:d=>{if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}bview=d.v;redraw()},
   qtyDel:d=>{draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
-  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,sel,cant:1,nota:''};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
+  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:''};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
+  popEdit:d=>{
+    const k=+d.k,i=draft.items[k],m=S.menu.find(x=>x.id===i.pid);
+    if(!m){toast('Este producto ya no está en la carta. Solo se puede eliminar.');return}
+    if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}
+    const partes=(i.op||'').split(' · '),sel={};
+    prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
+    pop={pid:m.id,precio:i.precio,sel,cant:i.cant,nota:i.nota||'',editK:k};popPintar();$('#pop').hidden=false;
+    if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus();
+  },
   popClose:()=>popCerrar(),
   popSel:d=>{pop.sel[d.g]=d.v;popPintar()},
   popCant:d=>{pop.cant=Math.max(1,pop.cant+ +d.d);popPintar()},
@@ -929,6 +942,11 @@ const ACT={
     const m=S.menu.find(x=>x.id===pop.pid),gs=prodGrupos(m),falta=gs.find(g=>!pop.sel[g.k]);
     if(falta)return err('#pop-err','Elija una opción para continuar.');
     const op=gs.map(g=>pop.sel[g.k]).join(' · '),nota=pop.nota.trim();
+    if(pop.editK!==undefined){
+      const k=pop.editK,it=draft.items[k],otra=draft.items.find((i,j)=>j!==k&&i.pid===m.id&&i.op===op&&i.nota===nota);
+      if(otra){otra.cant+=pop.cant;draft.items.splice(k,1)}else Object.assign(it,{op,nota,cant:pop.cant});
+      popCerrar();paint.keep=true;redraw();toast(m.nombre+' actualizado');return;
+    }
     const ex=draft.items.find(i=>i.pid===m.id&&i.op===op&&i.nota===nota);
     if(ex)ex.cant+=pop.cant;else draft.items.push({pid:m.id,nombre:m.nombre,precio:m.precio,cant:pop.cant,nota,op});
     const n=pop.cant;popCerrar();paint.keep=true;redraw();toast((n>1?n+' × ':'')+m.nombre+' agregado');
