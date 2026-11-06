@@ -492,14 +492,13 @@ const chip=e=>`<span class="chip ${e}">${ESTADOS[e]}</span>`;
 const itemsHtml=p=>'<ul class="items">'+p.items.map(i=>`<li><span class="q">${i.cant}×</span><span>${esc(i.nombre)}${i.op?` <em>(${esc(i.op)})</em>`:''}${i.nota?`<small class="nota">${esc(i.nota)}</small>`:''}</span></li>`).join('')+'</ul>';
 const espera=t=>{const m=mins(t);return `<span class="wait ${m>=20?'w2':m>=10?'w1':''}">${m} min</span>`};
 const waLink=(cel,txt)=>`https://wa.me/51${cel}?text=${encodeURIComponent(txt)}`;
-const mapQuery=dir=>{
-  let q=String(dir||'').trim();
-  const ciudad=String(S.config.ciudad||'').trim();
-  if(!q.includes(',')&&ciudad)q+=', '+ciudad;
-  if(!/per[uú]\s*$/i.test(q))q+=', Perú';
-  return q;
-};
-const mapLink=c=>c.ubic?c.ubic:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery(c.dir))}`;
+const sinPeru=s=>String(s||'').trim().replace(/[,\s]*per[uú]\s*$/i,'');
+function dirTxt(c){
+  const d=sinPeru(c.dir),l=String(c.lugar||'').trim();
+  return l&&!d.toLowerCase().endsWith(l.toLowerCase())?d+', '+l:d;
+}
+const mapQuery=c=>dirTxt(c)+', Perú';
+const mapLink=c=>/^https:\/\/\S+$/i.test(c.ubic||'')?c.ubic:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery(c))}`;
 const negocio=()=>S.config.nombre;
 const prepago=p=>/-pagado$/.test(p.cliente.pago);
 const r2=v=>Math.round(v*100)/100;
@@ -575,7 +574,7 @@ function ticketsLista(){
     const c=p.cliente||{},nombre=p.tipo==='mesa'?'Mesa '+p.mesa:esc(c.nombre);
     const anulado=!!p.anulado,puede=editable(p);
     const motivo=anulado?'':p.estado==='en_camino'?'<span class="note">Ya salió en la moto</span>':puede?'':'<span class="note">Ya entregado o cobrado</span>';
-    return `<div class="trow t-${p.tipo} ${anulado?'off':''}"><div class="t-num">${num(p)}</div><div class="t-info"><div class="t-name">${nombre}</div><div class="t-chips"><span class="chip">${tipoN[p.tipo]}</span>${anulado?'<span class="chip anulado">Anulado</span>':chip(p.estado)}${chipEdit(p)}<span class="meta">${hora(p.creado)}</span>${c.cel?`<span class="meta num">${esc(c.cel)}</span>`:''}</div><div class="t-items">${p.items.map(i=>`${i.cant}× ${esc(i.nombre)}${i.op?` <span class="meta">(${esc(i.op)})</span>`:''}`).join(' · ')}</div>${c.dir?`<div class="meta">${esc(c.dir)}</div>`:''}${p.editado?`<div class="t-cambio">Editado a las ${hora(p.editado.en)}${p.editado.cambios.length?': '+esc(p.editado.cambios.join(' · ')):': datos o pago'}</div>`:''}</div><div class="t-der"><div><div class="t-total">${money(tot(p))}</div><div class="meta">${esc(metodoTxt(p))}</div></div><div class="t-btns">${c.cel&&!anulado?`<a class="btn small" href="tel:+51${esc(c.cel)}">Llamar</a>`:''}${puede?`<button class="btn small primary" data-act="tkEdit" data-id="${p.id}">Editar</button><button class="btn small danger" data-act="tkAnular" data-id="${p.id}">Anular</button>`:motivo}</div></div></div>`;
+    return `<div class="trow t-${p.tipo} ${anulado?'off':''}"><div class="t-num">${num(p)}</div><div class="t-info"><div class="t-name">${nombre}</div><div class="t-chips"><span class="chip">${tipoN[p.tipo]}</span>${anulado?'<span class="chip anulado">Anulado</span>':chip(p.estado)}${chipEdit(p)}<span class="meta">${hora(p.creado)}</span>${c.cel?`<span class="meta num">${esc(c.cel)}</span>`:''}</div><div class="t-items">${p.items.map(i=>`${i.cant}× ${esc(i.nombre)}${i.op?` <span class="meta">(${esc(i.op)})</span>`:''}`).join(' · ')}</div>${c.dir?`<div class="meta">${esc(dirTxt(c))}</div>`:''}${p.editado?`<div class="t-cambio">Editado a las ${hora(p.editado.en)}${p.editado.cambios.length?': '+esc(p.editado.cambios.join(' · ')):': datos o pago'}</div>`:''}</div><div class="t-der"><div><div class="t-total">${money(tot(p))}</div><div class="meta">${esc(metodoTxt(p))}</div></div><div class="t-btns">${c.cel&&!anulado?`<a class="btn small" href="tel:+51${esc(c.cel)}">Llamar</a>`:''}${puede?`<button class="btn small primary" data-act="tkEdit" data-id="${p.id}">Editar</button><button class="btn small danger" data-act="tkAnular" data-id="${p.id}">Anular</button>`:motivo}</div></div></div>`;
   }).join('');
 }
 const VIEWS={
@@ -592,7 +591,7 @@ delivery(){
   const act=deliveryActivos(),done=S.pedidos.filter(p=>deliORecoger(p)&&p.estado==='entregado'&&hoy(p));
   let h=`<div class="vhead"><div><h1>Delivery y recoger</h1><p>Pedidos que llegan por WhatsApp o por teléfono.</p></div><button class="btn primary" data-act="newDel">+ Nuevo pedido</button></div>`;
   h+=`<h2 class="sec">En curso (${act.length})</h2>`;
-  h+=act.length?'<div class="list">'+act.map(p=>`<button class="card" data-act="delDet" data-id="${p.id}"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div><div class="meta">${p.tipo==='recoger'?'<b>Recoger:</b> pasa por el local':esc(p.cliente.dir)}</div><div class="spread"><span class="meta">${pagoTxt(p)} · ${hora(p.creado)}</span><b class="money">${money(tot(p))}</b></div></button>`).join('')+'</div>':'<div class="empty">No hay pedidos en curso.</div>';
+  h+=act.length?'<div class="list">'+act.map(p=>`<button class="card" data-act="delDet" data-id="${p.id}"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div><div class="meta">${p.tipo==='recoger'?'<b>Recoger:</b> pasa por el local':esc(dirTxt(p.cliente))}</div><div class="spread"><span class="meta">${pagoTxt(p)} · ${hora(p.creado)}</span><b class="money">${money(tot(p))}</b></div></button>`).join('')+'</div>':'<div class="empty">No hay pedidos en curso.</div>';
   if(done.length)h+=`<h2 class="sec">Entregados hoy (${done.length})</h2><div class="list">`+done.map(p=>`<div class="card"><div class="spread"><span>${num(p)} · ${esc(p.cliente.nombre)}${p.tipo==='recoger'?' · Recoger':''}</span><span class="money">${money(tot(p))} · ${esc(p.metodo)}</span></div></div>`).join('')+'</div>';
   return h;
 },
@@ -621,12 +620,12 @@ moto(){
   h+=`<div class="cash"><span class="note">Efectivo cobrado, por entregar en caja</span><b class="money">${money(efe)}</b><span class="note">${ruta.length} en camino · ${coc.length} en cocina</span></div>`;
   h+=`<h2 class="sec">Listos para salir (${listos.length})</h2>`;
   if(listos.length){
-    h+='<div class="list">'+listos.map(p=>`<button class="card ${motoSel.has(p.id)?'sel':''}" data-act="msel" data-id="${p.id}" aria-pressed="${motoSel.has(p.id)}"><div class="card-top"><span class="card-title">${motoSel.has(p.id)?'✓ ':''}${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}</div><div class="meta">${esc(p.cliente.dir)}</div><div class="meta">Listo hace ${mins(p.listoEn||p.creado)} min</div>${cobroHtml(p)}</button>`).join('')+'</div>';
+    h+='<div class="list">'+listos.map(p=>`<button class="card ${motoSel.has(p.id)?'sel':''}" data-act="msel" data-id="${p.id}" aria-pressed="${motoSel.has(p.id)}"><div class="card-top"><span class="card-title">${motoSel.has(p.id)?'✓ ':''}${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}</div><div class="meta">${esc(dirTxt(p.cliente))}</div><div class="meta">Listo hace ${mins(p.listoEn||p.creado)} min</div>${cobroHtml(p)}</button>`).join('')+'</div>';
     h+=`<div class="row" style="margin-top:12px"><button class="btn primary" data-act="salir" ${motoSel.size?'':'disabled'}>${motoSel.size?`Salir con ${motoSel.size} pedido${motoSel.size>1?'s':''}`:'Toca los pedidos que vas a llevar'}</button></div>`;
   } else h+='<div class="empty">Nada para llevar por ahora.</div>';
   h+=`<h2 class="sec">En camino (${ruta.length})</h2>`;
   h+=ruta.length?'<div class="list">'+ruta.map(p=>{const c=p.cliente;
-    return `<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(c.nombre)}</span><span class="meta">salió hace ${mins(p.salioEn)} min</span></div><div>${esc(c.dir)}<div class="meta">${esc(c.ref)}</div></div><div class="meta">Celular: <span class="num">${esc(c.cel)}</span></div>${cobroHtml(p)}<div class="links"><a class="btn small" href="${esc(mapLink(c))}" target="_blank" rel="noopener">${c.ubic?'Abrir ubicación exacta':'Abrir en Google Maps'}</a><a class="btn small" href="${waLink(c.cel,`Hola ${c.nombre}, tu pedido ${num(p)} de ${negocio()} va en camino.`)}" target="_blank" rel="noopener">Avisar por WhatsApp</a></div><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`}).join('')+'</div>':'<div class="empty">La moto está en el local.</div>';
+    return `<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(c.nombre)}</span><span class="meta">salió hace ${mins(p.salioEn)} min</span></div><div>${esc(dirTxt(c))}<div class="meta">${esc(c.ref)}</div></div><div class="meta">Celular: <span class="num">${esc(c.cel)}</span></div>${cobroHtml(p)}<div class="links"><a class="btn small" href="${esc(mapLink(c))}" target="_blank" rel="noopener">${c.ubic?'Abrir ubicación exacta':'Abrir en Google Maps'}</a><a class="btn small" href="${waLink(c.cel,`Hola ${c.nombre}, tu pedido ${num(p)} de ${negocio()} va en camino.`)}" target="_blank" rel="noopener">Avisar por WhatsApp</a></div><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`}).join('')+'</div>':'<div class="empty">La moto está en el local.</div>';
   return h;
 },
 caja(){
@@ -668,7 +667,7 @@ carta(){
 negocio(){
   if(!negDraft)negDraft=clone(S.config);
   const d=negDraft;
-  let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div><div class="field"><label for="n-ciu">Ciudad del negocio</label><input id="n-ciu" autocomplete="off" placeholder="Ej.: Lima, Chiclayo, Arequipa" value="${esc(d.ciudad)}"><span class="note">Se usa en Google Maps cuando la dirección no indica distrito ni ciudad.</span></div></div>`;
+  let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div><div class="field"><label for="n-ciu">Ciudad del negocio</label><input id="n-ciu" autocomplete="off" placeholder="Ej.: Lima, Chiclayo, Arequipa" value="${esc(d.ciudad)}"><span class="note">Aparece ya escrita en Distrito o ciudad de cada delivery nuevo, y se puede cambiar en el pedido.</span></div></div>`;
   h+=`<p class="err" id="n-err" hidden></p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="negSave">Guardar cambios</button><button class="btn ghost" data-act="negUndo">Descartar</button></div>`;
   h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
   return h;
@@ -746,7 +745,7 @@ function sheetDelDet(id){return()=>{
     paint(head('Recoger · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><b>El cliente pasa a recoger por el local.</b></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div>${p.estado==='listo'?'':'<p class="note" style="margin:0">Cuando cocina lo marque como listo, aquí podrá entregarlo.</p>'}</div>${p.estado==='listo'?`<div class="sh-foot"><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`:''}`);
     return;
   }
-  paint(head('Delivery · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><div>${esc(c.dir)}</div><div class="meta">${esc(c.ref)}</div><div class="meta">Celular <span class="num">${esc(c.cel)}</span></div></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(sub(p))}</span></div><div class="spread"><span>Delivery</span><span class="money">${money(p.envio)}</span></div><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div><a class="btn" href="${waLink(c.cel,`Hola ${c.nombre}, recibimos tu pedido ${num(p)} en ${negocio()}. Total ${money(tot(p))}. Pago: ${pagoTxt(p)}. Te avisamos cuando salga la moto.`)}" target="_blank" rel="noopener">Confirmar al cliente por WhatsApp</a><p class="note" style="margin:0">El botón abre WhatsApp con el mensaje ya escrito; usted decide si lo envía.</p></div>`);
+  paint(head('Delivery · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><div>${esc(dirTxt(c))}</div><div class="meta">${esc(c.ref)}</div><div class="meta">Celular <span class="num">${esc(c.cel)}</span></div></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(sub(p))}</span></div><div class="spread"><span>Delivery</span><span class="money">${money(p.envio)}</span></div><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div><a class="btn" href="${waLink(c.cel,`Hola ${c.nombre}, recibimos tu pedido ${num(p)} en ${negocio()}. Total ${money(tot(p))}. Pago: ${pagoTxt(p)}. Te avisamos cuando salga la moto.`)}" target="_blank" rel="noopener">Confirmar al cliente por WhatsApp</a><p class="note" style="margin:0">El botón abre WhatsApp con el mensaje ya escrito; usted decide si lo envía.</p></div>`);
 }}
 // Pedazos que comparten mesa, para llevar y delivery
 const redraw=()=>{if(sheetFn)sheetFn()};
@@ -806,7 +805,7 @@ function totalesHtml(d){
 }
 const tkLineas=d=>d.items.map((i,k)=>`<div class="tk-line"><div class="pn">${esc(i.nombre)}</div>${i.op?`<div class="meta">${esc(i.op)}</div>`:''}${i.nota?`<div class="meta">Nota: ${esc(i.nota)}</div>`:''}<div class="tk-row"><div class="qty"><button data-act="qtyPaso" data-k="${k}" data-d="-1" aria-label="Quitar uno de ${esc(i.nombre)}" ${i.cant<2?'disabled':''}>−</button><span>${i.cant}</span><button data-act="qtyPaso" data-k="${k}" data-d="1" aria-label="Agregar uno de ${esc(i.nombre)}">+</button></div><span class="money">${money(i.precio*i.cant)}</span><button class="tk-edit" data-act="popEdit" data-k="${k}" title="Editar" aria-label="Editar ${esc(i.nombre)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><button class="tk-del" data-act="qtyDel" data-k="${k}" title="Eliminar" aria-label="Eliminar ${esc(i.nombre)} del pedido">✕</button></div></div>`).join('');
 function ticketHtml(d){
-  const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?'<div class="tk-det">Pasa a recoger por el local</div>':`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(c.dir)}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
+  const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?'<div class="tk-det">Pasa a recoger por el local</div>':`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(dirTxt(c))}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
   return `<div class="tk"><div class="tk-head"><div class="tk-eb">Ticket · ${rec?'Recoger':'Delivery'}</div><div class="tk-name">${c.nombre?esc(c.nombre):'Cliente sin nombre'}</div>${det}</div><div class="tk-items" data-scroll="c">${d.items.length?tkLineas(d):'<div class="tk-vacio">Los productos aparecerán aquí.</div>'}</div><div class="tk-foot"><div id="tk-tot">${totalesHtml(d)}</div></div></div>`;
 }
 function tkRefrescar(){
@@ -878,7 +877,7 @@ function sheetWiz(){
       <div class="two">${nombre}
       <div class="field"><label for="w-cel">Teléfono</label><input id="w-cel" inputmode="numeric" maxlength="9" placeholder="9 dígitos" autocomplete="off" value="${esc(c.cel)}"></div></div>
       ${d.frecuente?'<div class="hint">Cliente frecuente: sus datos se llenaron solos.</div>':''}
-      <div class="field"><label for="w-dir">Dirección</label><input id="w-dir" autocomplete="off" placeholder="Calle y número, distrito, provincia" value="${esc(c.dir)}"></div>
+      <div class="two"><div class="field"><label for="w-dir">Dirección</label><input id="w-dir" autocomplete="off" placeholder="Calle y número" value="${esc(c.dir)}"></div><div class="field"><label for="w-lug">Distrito o ciudad</label><input id="w-lug" autocomplete="off" placeholder="Ej.: Miraflores, Trujillo" value="${esc(c.lugar)}"></div></div><div class="row"><a class="btn small" id="w-probar" href="${esc(mapLink(c))}" target="_blank" rel="noopener" ${c.dir||c.ubic?'':'hidden'}>Probar en Google Maps</a><span class="note">Si el pedido es de otro lugar, cambie Distrito o ciudad.</span></div>
       <div class="two"><div class="field"><label for="w-ref">Referencia (opcional)</label><input id="w-ref" autocomplete="off" placeholder="Color de la casa, piso, parque cercano…" value="${esc(c.ref)}"></div>
       <div class="field"><label for="w-env">Costo de delivery (S/)</label><input id="w-env" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${c.envio??''}"></div></div>
       <div class="field"><label for="w-ubi">Enlace de ubicación de Google Maps (opcional)</label><input id="w-ubi" type="url" inputmode="url" autocomplete="off" placeholder="Pegue aquí el enlace que mandó el cliente" value="${esc(c.ubic)}"></div>
@@ -899,7 +898,7 @@ function wizLeerCliente(){
   c.nombre=v('#w-nom');
   if(draft.tipo==='recoger')return;
   const e=v('#w-env');
-  c.cel=v('#w-cel').replace(/\D/g,'');c.dir=v('#w-dir');c.ref=v('#w-ref');c.ubic=v('#w-ubi');
+  c.cel=v('#w-cel').replace(/\D/g,'');c.dir=v('#w-dir');c.lugar=v('#w-lug');c.ref=v('#w-ref');c.ubic=v('#w-ubi');
   c.envio=e===''?undefined:parseFloat(e);
 }
 
@@ -974,7 +973,7 @@ const ACT={
   },
   mixOtro:d=>{if(draft&&draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}mix.otro=d.o;paint.keep=true;redraw()},
   pagar:d=>{const n=+d.n,m=mesaInfo(n);m.ps.forEach(p=>{p.pagado=true;p.metodo=d.m;p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});S.cuenta[n]=false;closeSheet();commit(`Mesa ${n} cobrada: ${money(m.total)} con ${d.m}. Mesa libre.`)},
-  newDel:()=>{mix=mixVacio();draft={tipo:'delivery',paso:1,cliente:{},items:[],pagoSel:null,pagaCon:''};bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetWiz)},
+  newDel:()=>{mix=mixVacio();draft={tipo:'delivery',paso:1,cliente:{lugar:S.config.ciudad||''},items:[],pagoSel:null,pagaCon:''};bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetWiz)},
   delDet:d=>openSheet(sheetDelDet(d.id)),
   wzTipo:d=>{wizLeerCliente();draft.tipo=d.t;redraw();if(d.t==='recoger'&&matchMedia('(min-width:860px)').matches)$('#w-nom').focus()},
   wzNext:()=>{
@@ -1143,8 +1142,8 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   const t=e.target;
   if(draft&&draft.cliente){
-    const mapa={'w-nom':'nombre','w-cel':'cel','w-dir':'dir','w-ref':'ref','w-ubi':'ubic'};
-    if(mapa[t.id]){draft.cliente[mapa[t.id]]=t.id==='w-cel'?t.value.replace(/\D/g,''):t.value.trim();tkRefrescar()}
+    const mapa={'w-nom':'nombre','w-cel':'cel','w-dir':'dir','w-lug':'lugar','w-ref':'ref','w-ubi':'ubic'};
+    if(mapa[t.id]){draft.cliente[mapa[t.id]]=t.id==='w-cel'?t.value.replace(/\D/g,''):t.value.trim();tkRefrescar();const pr=$('#w-probar');if(pr){const c=draft.cliente;pr.href=mapLink(c);pr.hidden=!(c.dir||c.ubic)}}
     if(t.id==='w-env'){draft.cliente.envio=t.value===''?undefined:parseFloat(t.value);tkRefrescar()}
     if(t.id==='w-env3'){draft.cliente.envio=t.value===''?undefined:parseFloat(t.value);tkRefrescar();$('#w-det').innerHTML=detPago(draft)}
   }
