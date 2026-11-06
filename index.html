@@ -413,7 +413,7 @@ const DEF_MENU=[
   ['com','Capuccino + Torta de chocolate',29,''],
   ['com','Frappé + Croissant clásico',27,'',['Mocha','Caramel','Oreo','Lúcuma','Fresa']]
 ].map((m,i)=>({id:'p'+i,cat:m[0],nombre:m[1],precio:m[2],desc:m[3],ops:m[4]||null,agotado:false}));
-const DEF_CONFIG={nombre:'Café Demo',mesas:5};
+const DEF_CONFIG={nombre:'Café Demo',mesas:5,ciudad:'Lima'};
 const DEF_PERSONAL=[{id:'u1',nombre:'Ana',rol:'mesero',activo:true},{id:'u2',nombre:'Carmen',rol:'cajero',activo:true},{id:'u3',nombre:'Pedro',rol:'cocina',activo:true},{id:'u4',nombre:'Luis',rol:'moto',activo:true}];
 
 const PAGOS={efectivo:'Efectivo','yape-pagado':'Yape (captura por WhatsApp)','plin-pagado':'Plin (captura por WhatsApp)',tarjeta:'Tarjeta (llevar POS)',yape:'Yape al recibir',plin:'Plin al recibir'};
@@ -465,6 +465,7 @@ function migrate(s){
   if(!s.personal)s.personal=clone(DEF_PERSONAL);
   if(!s.reservas)s.reservas={};
   if(!s.anulados)s.anulados=[];
+  if(s.config.ciudad===undefined)s.config.ciudad='Lima';
   s.cats.forEach(c=>{if(c.azucar===undefined){const q=DEF_CATS.find(x=>x.id===c.id)||{};c.azucar=!!q.azucar;c.temp=!!q.temp}});
   return s;
 }
@@ -491,7 +492,14 @@ const chip=e=>`<span class="chip ${e}">${ESTADOS[e]}</span>`;
 const itemsHtml=p=>'<ul class="items">'+p.items.map(i=>`<li><span class="q">${i.cant}×</span><span>${esc(i.nombre)}${i.op?` <em>(${esc(i.op)})</em>`:''}${i.nota?`<small class="nota">${esc(i.nota)}</small>`:''}</span></li>`).join('')+'</ul>';
 const espera=t=>{const m=mins(t);return `<span class="wait ${m>=20?'w2':m>=10?'w1':''}">${m} min</span>`};
 const waLink=(cel,txt)=>`https://wa.me/51${cel}?text=${encodeURIComponent(txt)}`;
-const mapLink=dir=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir+', Lima, Perú')}`;
+const mapQuery=dir=>{
+  let q=String(dir||'').trim();
+  const ciudad=String(S.config.ciudad||'').trim();
+  if(!q.includes(',')&&ciudad)q+=', '+ciudad;
+  if(!/per[uú]\s*$/i.test(q))q+=', Perú';
+  return q;
+};
+const mapLink=c=>c.ubic?c.ubic:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery(c.dir))}`;
 const negocio=()=>S.config.nombre;
 const prepago=p=>/-pagado$/.test(p.cliente.pago);
 const r2=v=>Math.round(v*100)/100;
@@ -618,7 +626,7 @@ moto(){
   } else h+='<div class="empty">Nada para llevar por ahora.</div>';
   h+=`<h2 class="sec">En camino (${ruta.length})</h2>`;
   h+=ruta.length?'<div class="list">'+ruta.map(p=>{const c=p.cliente;
-    return `<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(c.nombre)}</span><span class="meta">salió hace ${mins(p.salioEn)} min</span></div><div>${esc(c.dir)}<div class="meta">${esc(c.ref)}</div></div><div class="meta">Celular: <span class="num">${esc(c.cel)}</span></div>${cobroHtml(p)}<div class="links"><a class="btn small" href="${mapLink(c.dir)}" target="_blank" rel="noopener">Abrir en Google Maps</a><a class="btn small" href="${waLink(c.cel,`Hola ${c.nombre}, tu pedido ${num(p)} de ${negocio()} va en camino.`)}" target="_blank" rel="noopener">Avisar por WhatsApp</a></div><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`}).join('')+'</div>':'<div class="empty">La moto está en el local.</div>';
+    return `<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(c.nombre)}</span><span class="meta">salió hace ${mins(p.salioEn)} min</span></div><div>${esc(c.dir)}<div class="meta">${esc(c.ref)}</div></div><div class="meta">Celular: <span class="num">${esc(c.cel)}</span></div>${cobroHtml(p)}<div class="links"><a class="btn small" href="${esc(mapLink(c))}" target="_blank" rel="noopener">${c.ubic?'Abrir ubicación exacta':'Abrir en Google Maps'}</a><a class="btn small" href="${waLink(c.cel,`Hola ${c.nombre}, tu pedido ${num(p)} de ${negocio()} va en camino.`)}" target="_blank" rel="noopener">Avisar por WhatsApp</a></div><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`}).join('')+'</div>':'<div class="empty">La moto está en el local.</div>';
   return h;
 },
 caja(){
@@ -660,7 +668,7 @@ carta(){
 negocio(){
   if(!negDraft)negDraft=clone(S.config);
   const d=negDraft;
-  let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div></div>`;
+  let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div><div class="field"><label for="n-ciu">Ciudad del negocio</label><input id="n-ciu" autocomplete="off" placeholder="Ej.: Lima, Chiclayo, Arequipa" value="${esc(d.ciudad)}"><span class="note">Se usa en Google Maps cuando la dirección no indica distrito ni ciudad.</span></div></div>`;
   h+=`<p class="err" id="n-err" hidden></p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="negSave">Guardar cambios</button><button class="btn ghost" data-act="negUndo">Descartar</button></div>`;
   h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
   return h;
@@ -870,9 +878,10 @@ function sheetWiz(){
       <div class="two">${nombre}
       <div class="field"><label for="w-cel">Teléfono</label><input id="w-cel" inputmode="numeric" maxlength="9" placeholder="9 dígitos" autocomplete="off" value="${esc(c.cel)}"></div></div>
       ${d.frecuente?'<div class="hint">Cliente frecuente: sus datos se llenaron solos.</div>':''}
-      <div class="field"><label for="w-dir">Dirección</label><input id="w-dir" autocomplete="off" placeholder="Calle, número y distrito" value="${esc(c.dir)}"></div>
+      <div class="field"><label for="w-dir">Dirección</label><input id="w-dir" autocomplete="off" placeholder="Calle y número, distrito, provincia" value="${esc(c.dir)}"></div>
       <div class="two"><div class="field"><label for="w-ref">Referencia (opcional)</label><input id="w-ref" autocomplete="off" placeholder="Color de la casa, piso, parque cercano…" value="${esc(c.ref)}"></div>
       <div class="field"><label for="w-env">Costo de delivery (S/)</label><input id="w-env" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${c.envio??''}"></div></div>
+      <div class="field"><label for="w-ubi">Enlace de ubicación de Google Maps (opcional)</label><input id="w-ubi" type="url" inputmode="url" autocomplete="off" placeholder="Pegue aquí el enlace que mandó el cliente" value="${esc(c.ubic)}"></div>
       <p class="note" style="margin:0">Puede poner el costo ahora o en el paso de pago, cuando ya vea el tamaño del pedido.</p>
       <p class="note" style="margin:0">Pruebe con un teléfono de ejemplo: <span class="num">987654321</span> o <span class="num">912345678</span>.</p>`;
     paint(head(d.editId?tituloWiz(d):'Nuevo pedido','Datos del cliente')+stepsHtml(1)+`<div class="sh-body">${d.editId?'':modo}<div class="w1"><div class="w1-a">${campos}</div><div class="w1-b tk-lado" id="ticket">${ticketHtml(d)}</div></div><p class="err" id="w-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn primary" data-act="wzNext">Siguiente: productos →</button></div>`);
@@ -890,7 +899,7 @@ function wizLeerCliente(){
   c.nombre=v('#w-nom');
   if(draft.tipo==='recoger')return;
   const e=v('#w-env');
-  c.cel=v('#w-cel').replace(/\D/g,'');c.dir=v('#w-dir');c.ref=v('#w-ref');
+  c.cel=v('#w-cel').replace(/\D/g,'');c.dir=v('#w-dir');c.ref=v('#w-ref');c.ubic=v('#w-ubi');
   c.envio=e===''?undefined:parseFloat(e);
 }
 
@@ -923,7 +932,7 @@ function commit(msg){save();render();if(msg)toast(msg)}
 const err=(id,t)=>{const el=$(id);el.textContent=t;el.hidden=false};
 function readNeg(){
   if(!negDraft||!$('#n-nom'))return;
-  negDraft.nombre=$('#n-nom').value;negDraft.mesas=$('#n-mesas').value;
+  negDraft.nombre=$('#n-nom').value;negDraft.mesas=$('#n-mesas').value;negDraft.ciudad=$('#n-ciu').value;
 }
 function guardarEdicion(d,cliente,envio){
   const p=find(d.editId);
@@ -975,7 +984,7 @@ const ACT={
         if(!c.nombre)return err('#w-err','Falta el nombre del cliente.');
         draft.paso++;bview='menu';redraw();return;
       }
-      const e=!c.nombre?'Falta el nombre del cliente.':c.cel.length!==9?'El teléfono debe tener 9 dígitos.':!c.dir?'Falta la dirección.':c.envio<0?'El costo de delivery no puede ser negativo.':'';
+      const e=!c.nombre?'Falta el nombre del cliente.':c.cel.length!==9?'El teléfono debe tener 9 dígitos.':!c.dir?'Falta la dirección.':c.ubic&&!/^https:\/\/\S+$/i.test(c.ubic)?'El enlace de ubicación debe empezar con https:// y no tener espacios.':c.envio<0?'El costo de delivery no puede ser negativo.':'';
       if(e)return err('#w-err',e);
     }
     draft.paso++;bview='menu';redraw();
@@ -1120,7 +1129,7 @@ const ACT={
     if(ocupada)return err('#n-err',`La mesa ${ocupada.mesa} tiene una cuenta abierta. Cóbrela antes de reducir las mesas.`);
     const sep=Object.keys(S.reservas).find(n=>+n>mesas);
     if(sep)return err('#n-err',`La mesa ${sep} está separada. Quite la separación antes de reducir las mesas.`);
-    S.config={nombre:d.nombre.trim(),mesas};negDraft=null;commit('Cambios guardados');
+    S.config={nombre:d.nombre.trim(),mesas,ciudad:String(d.ciudad||'').trim()};negDraft=null;commit('Cambios guardados');
   },
   uAct:d=>{const u=S.personal.find(x=>x.id===d.id);u.activo=!u.activo;commit(u.nombre+(u.activo?' tiene acceso otra vez':' ya no tiene acceso'))},
   uAdd:()=>{const n=$('#u-nom').value.trim();if(!n){$('#u-nom').focus();return}S.personal.push({id:uid('u'),nombre:n,rol:$('#u-rol').value,activo:true});commit(n+' agregado al personal')}
@@ -1134,7 +1143,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('input',e=>{
   const t=e.target;
   if(draft&&draft.cliente){
-    const mapa={'w-nom':'nombre','w-cel':'cel','w-dir':'dir','w-ref':'ref'};
+    const mapa={'w-nom':'nombre','w-cel':'cel','w-dir':'dir','w-ref':'ref','w-ubi':'ubic'};
     if(mapa[t.id]){draft.cliente[mapa[t.id]]=t.id==='w-cel'?t.value.replace(/\D/g,''):t.value.trim();tkRefrescar()}
     if(t.id==='w-env'){draft.cliente.envio=t.value===''?undefined:parseFloat(t.value);tkRefrescar()}
     if(t.id==='w-env3'){draft.cliente.envio=t.value===''?undefined:parseFloat(t.value);tkRefrescar();$('#w-det').innerHTML=detPago(draft)}
