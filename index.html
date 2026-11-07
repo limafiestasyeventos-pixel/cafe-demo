@@ -264,6 +264,9 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .pop-body{padding:14px 16px;display:grid;gap:14px;overflow:auto;min-height:0}
 .pop-t{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .pop-ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,90px),1fr));gap:8px}
+.pop-ext{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:8px}
+.pop-ext .btn{justify-content:space-between;gap:6px;text-align:left;line-height:1.2;white-space:normal}
+.pop-ext b{font-weight:600;white-space:nowrap}
 .pop-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-top:1px solid var(--line)}
 .pop-foot .btn{flex:0 1 auto}
 .chk{display:flex;align-items:center;gap:8px;font-size:14px}
@@ -351,7 +354,8 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 const DEF_CATS=[
   {id:'cal',n:'Cafés calientes',azucar:true,temp:false},{id:'fri',n:'Cafés fríos',azucar:true,temp:false},{id:'fra',n:'Frappés y helados',azucar:true,temp:false},
   {id:'cro',n:'Croissants',azucar:false,temp:false},{id:'sal',n:'Empanadas y lasagnas',azucar:false,temp:false},{id:'jug',n:'Jugos',azucar:true,temp:true},
-  {id:'pos',n:'Postres',azucar:false,temp:false},{id:'com',n:'Combos',azucar:false,temp:false}];
+  {id:'pos',n:'Postres',azucar:false,temp:false},{id:'com',n:'Combos',azucar:false,temp:false},
+  {id:'bur',n:'BURGERS PARRILLERAS',azucar:false,temp:false,extras:[{n:'Huevo',p:2},{n:'Queso',p:2.5},{n:'Chorizo',p:3.5},{n:'Carne pura',p:3.5},{n:'Filete de pollo',p:3.5},{n:'Pollo deshilachado',p:2.5},{n:'Plátano',p:1.5},{n:'Hot dog',p:1.5},{n:'Tocino',p:3},{n:'Piña',p:3},{n:'Jamón',p:2.5}]}];
 const GRUPOS={temp:{t:'Temperatura',ops:['Helada','Normal','Sin helar'],def:'Normal'},azucar:{t:'Azúcar',ops:['Sin azúcar','Poca azúcar','Mediana azúcar'],def:'Mediana azúcar'}};
 const DEF_MENU=[
   ['cal','Espresso doble',7,'Dos shots de café espresso simple.'],
@@ -411,7 +415,20 @@ const DEF_MENU=[
   ['com','Americano + Alfajor o galleta chocochip',15,'',['Alfajor','Galleta chocochip']],
   ['com','Cold brew + Brownie',28,''],
   ['com','Capuccino + Torta de chocolate',29,''],
-  ['com','Frappé + Croissant clásico',27,'',['Mocha','Caramel','Oreo','Lúcuma','Fresa']]
+  ['com','Frappé + Croissant clásico',27,'',['Mocha','Caramel','Oreo','Lúcuma','Fresa']],
+  ['bur','La Tóxica',18,'Carne a la parrilla de 120 gr + huevo + hot dog + chorizo + pollo deshilado + plátano + queso.'],
+  ['bur','La Hawaiana',14.5,'Carne a la parrilla de 120 gr + piña + queso + jamón.'],
+  ['bur','El Súgar Daddy',14,'Carne a la parrilla de 120 gr + 2 huevos + chorizo.'],
+  ['bur','La Pizzería',12,'Carne a la parrilla de 120 gr + jamón + queso.'],
+  ['bur','La Sugar Mommy',13,'Carne a la parrilla de 120 gr + huevo + chorizo.'],
+  ['bur','La Carretillera',11.5,'Carne a la parrilla de 120 gr + pollo deshilado + huevo.'],
+  ['bur','La Parrillera a lo Pobre',11.5,'Carne a la parrilla de 120 gr + plátano + huevo.'],
+  ['bur','La Chesse Royal',11.5,'Carne a la parrilla de 120 gr + queso + huevo.'],
+  ['bur','La Sencilla',7.5,'Carne a la parrilla de 120 gr.'],
+  ['bur','Filete de Pollo',7,''],
+  ['bur','Cheese Filete',9.5,'Filete + queso.'],
+  ['bur','Filete Cheese + Tocino',12.5,'Filete + piña + jamón + queso.'],
+  ['bur','Filete Tropical',15,'Filete + piña.']
 ].map((m,i)=>({id:'p'+i,cat:m[0],nombre:m[1],precio:m[2],desc:m[3],ops:m[4]||null,agotado:false}));
 const DEF_CONFIG={nombre:'Café Demo',mesas:5,ciudad:'Lima'};
 const DEF_PERSONAL=[{id:'u1',nombre:'Ana',rol:'mesero',activo:true},{id:'u2',nombre:'Carmen',rol:'cajero',activo:true},{id:'u3',nombre:'Pedro',rol:'cocina',activo:true},{id:'u4',nombre:'Luis',rol:'moto',activo:true}];
@@ -465,6 +482,13 @@ function migrate(s){
   if(!s.personal)s.personal=clone(DEF_PERSONAL);
   if(!s.reservas)s.reservas={};
   if(!s.anulados)s.anulados=[];
+  if(!s.cartaBurgers){
+    if(!s.cats.some(c=>c.id==='bur')){
+      s.cats.push(clone(DEF_CATS.find(c=>c.id==='bur')));
+      DEF_MENU.filter(m=>m.cat==='bur'&&!s.menu.some(x=>x.id===m.id)).forEach(m=>s.menu.push(clone(m)));
+    }
+    s.cartaBurgers=true;
+  }
   if(s.config.ciudad===undefined)s.config.ciudad='Lima';
   s.cats.forEach(c=>{if(c.azucar===undefined){const q=DEF_CATS.find(x=>x.id===c.id)||{};c.azucar=!!q.azucar;c.temp=!!q.temp}});
   return s;
@@ -767,9 +791,12 @@ function prodGrupos(m){
   if(c.azucar)g.push({k:'azucar',...GRUPOS.azucar});
   return g;
 }
+const extrasDe=m=>(S.cats.find(x=>x.id===m.cat)||{}).extras||[];
+const popExtras=m=>extrasDe(m).filter(x=>pop.ext.includes(x.n));
+const popUnit=m=>r2(pop.precio+popExtras(m).reduce((a,x)=>a+x.p,0));
 function popPintar(){
   const m=S.menu.find(x=>x.id===pop.pid),c=S.cats.find(x=>x.id===m.cat)||{};
-  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(pop.precio)}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}<div class="field"><label for="pop-nota">Nota para cocina (opcional)</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">${pop.editK!==undefined?'Guardar':'Agregar'} · ${money(pop.precio*pop.cant)}</button></div>`;
+  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(popUnit(m))}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}${extrasDe(m).length?`<div><div class="pop-t">Agranda tu hamburguesa (opcional)</div><div class="pop-ext">${extrasDe(m).map(x=>{const on=pop.ext.includes(x.n);return `<button class="btn small ${on?'primary':''}" data-act="popExt" data-v="${esc(x.n)}" aria-pressed="${on}"><span>${esc(x.n)}</span><b>+${money(x.p)}</b></button>`}).join('')}</div></div>`:''}<div class="field"><label for="pop-nota">Nota para cocina (opcional)</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">${pop.editK!==undefined?'Guardar':'Agregar'} · ${money(popUnit(m)*pop.cant)}</button></div>`;
 }
 function popCerrar(){pop=null;$('#pop').hidden=true;$('#pop-box').innerHTML=''}
 const draftSub=d=>d.items.reduce((a,i)=>a+i.precio*i.cant,0);
@@ -919,7 +946,7 @@ function sheetProd(id){return()=>{
 function sheetCat(id){return()=>{
   const c=id?S.cats.find(x=>x.id===id):{n:''};
   const usados=id?S.menu.filter(m=>m.cat===id).length:0;
-  paint(head(id?'Categoría':'Nueva categoría',id?esc(c.n):'Agregar a la carta')+`<div class="sh-body"><div class="field"><label for="c-nom">Nombre</label><input id="c-nom" autocomplete="off" value="${esc(c.n)}" placeholder="Ej.: Sándwiches"></div><label class="chk"><input type="checkbox" id="c-azu" ${c.azucar?'checked':''}> Preguntar el azúcar al pedir</label><label class="chk"><input type="checkbox" id="c-tem" ${c.temp?'checked':''}> Preguntar la temperatura al pedir</label>${id?`<p class="note" style="margin:0">${usados?`Tiene ${usados} producto${usados>1?'s':''}. Para borrarla, primero mueva o quite sus productos.`:'No tiene productos, se puede borrar.'}</p>`:''}<p class="err" id="c-err" hidden></p></div><div class="sh-foot">${id&&!usados?`<button class="btn danger" data-act="catDel" data-id="${id}">Borrar categoría</button>`:''}<button class="btn primary" data-act="catSave" data-id="${id||''}">Guardar</button></div>`);
+  paint(head(id?'Categoría':'Nueva categoría',id?esc(c.n):'Agregar a la carta')+`<div class="sh-body"><div class="field"><label for="c-nom">Nombre</label><input id="c-nom" autocomplete="off" value="${esc(c.n)}" placeholder="Ej.: Sándwiches"></div><label class="chk"><input type="checkbox" id="c-azu" ${c.azucar?'checked':''}> Preguntar el azúcar al pedir</label><label class="chk"><input type="checkbox" id="c-tem" ${c.temp?'checked':''}> Preguntar la temperatura al pedir</label><div class="field"><label for="c-ext">Agregados con precio (opcional)</label><input id="c-ext" autocomplete="off" placeholder="Ej.: Huevo 2, Queso 2.50" value="${esc((c.extras||[]).map(x=>x.n+' '+x.p).join(', '))}"><span class="note">Sepárelos con comas y ponga el precio al final de cada uno.</span></div>${id?`<p class="note" style="margin:0">${usados?`Tiene ${usados} producto${usados>1?'s':''}. Para borrarla, primero mueva o quite sus productos.`:'No tiene productos, se puede borrar.'}</p>`:''}<p class="err" id="c-err" hidden></p></div><div class="sh-foot">${id&&!usados?`<button class="btn danger" data-act="catDel" data-id="${id}">Borrar categoría</button>`:''}<button class="btn primary" data-act="catSave" data-id="${id||''}">Guardar</button></div>`);
 }}
 function sheetRol(){
   paint(head('Prototipo','¿Quién está usando este aparato?')+`<div class="sh-body"><p class="note" style="margin:0">Elija un rol para ver el sistema como esa persona. Con la base de datos, esto será un inicio de sesión con correo y contraseña.</p><div class="roles">${Object.entries(ROLES).map(([k,r])=>`<button class="rolec ${rol===k?'on':''}" data-act="setRol" data-r="${k}"><b>${r.n}</b><span class="meta">${r.d}</span>${rol===k?'<span class="chip">Estás aquí</span>':''}</button>`).join('')}</div></div>`);
@@ -1020,14 +1047,14 @@ const ACT={
   bview:d=>{if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}bview=d.v;redraw()},
   qtyPaso:d=>{const i=draft.items[+d.k];i.cant=Math.max(1,i.cant+ +d.d);if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
   qtyDel:d=>{draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
-  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:''};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
+  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:'',ext:[]};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
   popEdit:d=>{
     const k=+d.k,i=draft.items[k],m=S.menu.find(x=>x.id===i.pid);
     if(!m){toast('Este producto ya no está en la carta. Solo se puede eliminar.');return}
     if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}
     const partes=(i.op||'').split(' · '),sel={};
     prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
-    pop={pid:m.id,precio:i.precio,sel,cant:i.cant,nota:i.nota||'',editK:k};popPintar();$('#pop').hidden=false;
+    const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),editK:k};popPintar();$('#pop').hidden=false;
     if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus();
   },
   tkFiltro:d=>{ticketFiltro=d.f;render()},
@@ -1059,18 +1086,20 @@ const ACT={
   },
   popClose:()=>popCerrar(),
   popSel:d=>{pop.sel[d.g]=d.v;popPintar()},
+  popExt:d=>{const b=$('.pop-body'),sc=b?b.scrollTop:0;pop.ext=pop.ext.includes(d.v)?pop.ext.filter(x=>x!==d.v):[...pop.ext,d.v];popPintar();const n=$('.pop-body');if(n)n.scrollTop=sc},
   popCant:d=>{pop.cant=Math.max(1,pop.cant+ +d.d);popPintar()},
   popAdd:()=>{
     const m=S.menu.find(x=>x.id===pop.pid),gs=prodGrupos(m),falta=gs.find(g=>!pop.sel[g.k]);
     if(falta)return err('#pop-err','Elija una opción para continuar.');
-    const op=gs.map(g=>pop.sel[g.k]).join(' · '),nota=pop.nota.trim();
+    const exts=popExtras(m),precio=popUnit(m);
+    const op=[...gs.map(g=>pop.sel[g.k]),...(exts.length?['+ '+exts.map(x=>x.n).join(' + ')]:[])].join(' · '),nota=pop.nota.trim();
     if(pop.editK!==undefined){
       const k=pop.editK,it=draft.items[k],otra=draft.items.find((i,j)=>j!==k&&i.pid===m.id&&i.op===op&&i.nota===nota);
-      if(otra){otra.cant+=pop.cant;draft.items.splice(k,1)}else Object.assign(it,{op,nota,cant:pop.cant});
+      if(otra){otra.cant+=pop.cant;draft.items.splice(k,1)}else Object.assign(it,{op,nota,cant:pop.cant,precio,ext:exts});
       popCerrar();paint.keep=true;redraw();toast(m.nombre+' actualizado');return;
     }
     const ex=draft.items.find(i=>i.pid===m.id&&i.op===op&&i.nota===nota);
-    if(ex)ex.cant+=pop.cant;else draft.items.push({pid:m.id,nombre:m.nombre,precio:m.precio,cant:pop.cant,nota,op});
+    if(ex)ex.cant+=pop.cant;else draft.items.push({pid:m.id,nombre:m.nombre,precio,cant:pop.cant,nota,op,ext:exts});
     const n=pop.cant;popCerrar();paint.keep=true;redraw();toast((n>1?n+' × ':'')+m.nombre+' agregado');
   },
   send:()=>{
@@ -1114,8 +1143,13 @@ const ACT={
   catEdit:d=>openSheet(sheetCat(d.id||null)),
   catSave:d=>{
     const n=$('#c-nom').value.trim();if(!n)return err('#c-err','Escriba un nombre.');
-    const azucar=$('#c-azu').checked,temp=$('#c-tem').checked;
-    if(d.id)Object.assign(S.cats.find(c=>c.id===d.id),{n,azucar,temp});else{const id=uid('c');S.cats.push({id,n,azucar,temp});adminCat=id}
+    const azucar=$('#c-azu').checked,temp=$('#c-tem').checked,extras=[];
+    for(const parte of $('#c-ext').value.split(',').map(s=>s.trim()).filter(Boolean)){
+      const r=parte.match(/^(.+?)\s+(\d+(?:\.\d+)?)$/);
+      if(!r)return err('#c-err','Revise "'+parte+'": cada agregado necesita un nombre y su precio, por ejemplo Huevo 2.');
+      extras.push({n:r[1],p:parseFloat(r[2])});
+    }
+    if(d.id)Object.assign(S.cats.find(c=>c.id===d.id),{n,azucar,temp,extras});else{const id=uid('c');S.cats.push({id,n,azucar,temp,extras});adminCat=id}
     closeSheet();commit(d.id?'Categoría renombrada':'Categoría “'+n+'” creada');
   },
   catDel:(d,b)=>{if(!armed(b))return;S.cats=S.cats.filter(c=>c.id!==d.id);adminCat='todas';closeSheet();commit('Categoría borrada')},
