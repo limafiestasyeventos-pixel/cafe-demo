@@ -264,6 +264,13 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .pop-body{padding:14px 16px;display:grid;gap:14px;overflow:auto;min-height:0}
 .pop-t{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 .pop-ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,90px),1fr));gap:8px}
+.pop-tit{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pop-tit .pop-t{margin-bottom:0}
+.pop-tit .btn{min-height:30px;padding:3px 12px}
+.pop-ops .btn{flex-direction:column;gap:0;line-height:1.2}
+.pop-ops small{display:block;font-size:11px;font-weight:400;opacity:.85}
+.pop-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pop-chips .btn{border-radius:999px;flex:0 1 auto;min-height:34px;padding:4px 14px}
 .pop-ext{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:8px}
 .pop-ext .btn{justify-content:space-between;gap:6px;text-align:left;line-height:1.2;white-space:normal}
 .pop-ext b{font-weight:600;white-space:nowrap}
@@ -351,11 +358,21 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 
 <script>
 // ---------- Carta inicial (tomada de las fotos) ----------
+const ARMADO_BURGER={
+  una:[
+    {k:'ens',t:'Ensalada',ops:['Sí','No'],def:'Sí',txt:{'Sí':'Con ensalada','No':'Sin ensalada'}},
+    {k:'papa',t:'Tipo de papa',ops:['PF','PH','Mix','SP'],def:'PF',aparte:true,sinAparte:'SP',ayuda:{PF:'Fritas',PH:'Hilo',Mix:'Mixtas',SP:'Sin papas'},txt:{PF:'Papas fritas',PH:'Papa hilo',Mix:'Papas mixtas',SP:'Sin papas'}}
+  ],
+  multi:[
+    {k:'cla',t:'Cremas clásicas',corto:'Cremas',vacio:'Sin cremas',ops:['Mayonesa','Ketchup','Mostaza','Ají','Huacatay','Tártara','Golf','Aceituna']},
+    {k:'par',t:'Cremas parrilleras',corto:'Parrilleras',ops:['Barbiquiu (BBQ)','Acevichada','Ají Parrillero','Rocoto']}
+  ]
+};
 const DEF_CATS=[
   {id:'cal',n:'Cafés calientes',azucar:true,temp:false},{id:'fri',n:'Cafés fríos',azucar:true,temp:false},{id:'fra',n:'Frappés y helados',azucar:true,temp:false},
   {id:'cro',n:'Croissants',azucar:false,temp:false},{id:'sal',n:'Empanadas y lasagnas',azucar:false,temp:false},{id:'jug',n:'Jugos',azucar:true,temp:true},
   {id:'pos',n:'Postres',azucar:false,temp:false},{id:'com',n:'Combos',azucar:false,temp:false},
-  {id:'bur',n:'BURGERS PARRILLERAS',azucar:false,temp:false,extras:[{n:'Huevo',p:2},{n:'Queso',p:2.5},{n:'Chorizo',p:3.5},{n:'Carne pura',p:3.5},{n:'Filete de pollo',p:3.5},{n:'Pollo deshilachado',p:2.5},{n:'Plátano',p:1.5},{n:'Hot dog',p:1.5},{n:'Tocino',p:3},{n:'Piña',p:3},{n:'Jamón',p:2.5}]}];
+  {id:'bur',n:'BURGERS PARRILLERAS',azucar:false,temp:false,armado:ARMADO_BURGER,extras:[{n:'Huevo',p:2},{n:'Queso',p:2.5},{n:'Chorizo',p:3.5},{n:'Carne pura',p:3.5},{n:'Filete de pollo',p:3.5},{n:'Pollo deshilachado',p:2.5},{n:'Plátano',p:1.5},{n:'Hot dog',p:1.5},{n:'Tocino',p:3},{n:'Piña',p:3},{n:'Jamón',p:2.5}]}];
 const GRUPOS={temp:{t:'Temperatura',ops:['Helada','Normal','Sin helar'],def:'Normal'},azucar:{t:'Azúcar',ops:['Sin azúcar','Poca azúcar','Mediana azúcar'],def:'Mediana azúcar'}};
 const DEF_MENU=[
   ['cal','Espresso doble',7,'Dos shots de café espresso simple.'],
@@ -489,6 +506,8 @@ function migrate(s){
     }
     s.cartaBurgers=true;
   }
+  const catBur=s.cats.find(c=>c.id==='bur');
+  if(catBur&&!catBur.armado)catBur.armado=clone(ARMADO_BURGER);
   if(s.config.ciudad===undefined)s.config.ciudad='Lima';
   s.cats.forEach(c=>{if(c.azucar===undefined){const q=DEF_CATS.find(x=>x.id===c.id)||{};c.azucar=!!q.azucar;c.temp=!!q.temp}});
   return s;
@@ -791,13 +810,38 @@ function prodGrupos(m){
   if(c.azucar)g.push({k:'azucar',...GRUPOS.azucar});
   return g;
 }
+const armDe=m=>(S.cats.find(x=>x.id===m.cat)||{}).armado||null;
+function armIni(m){
+  const a=armDe(m);if(!a)return null;
+  return {una:Object.fromEntries(a.una.map(g=>[g.k,g.def])),multi:Object.fromEntries(a.multi.map(g=>[g.k,[]])),ap:{}};
+}
+function armHtml(m){
+  const a=armDe(m);if(!a||!pop.arm)return '';
+  const ap=(k,off)=>`<button class="btn small ${pop.arm.ap[k]?'primary':''}" data-act="popAp" data-g="${k}" aria-pressed="${!!pop.arm.ap[k]}" ${off?'disabled':''}>Aparte</button>`;
+  const una=a.una.map(g=>{const on=pop.arm.una[g.k];return `<div><div class="pop-tit"><div class="pop-t">${esc(g.t)}</div>${g.aparte?ap(g.k,on===g.sinAparte):''}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${on===o?'primary':''}" data-act="popUna" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${on===o}">${esc(o)}${g.ayuda?`<small>${esc(g.ayuda[o])}</small>`:''}</button>`).join('')}</div></div>`}).join('');
+  const multi=a.multi.map(g=>{const sel=pop.arm.multi[g.k]||[],todas=sel.length===g.ops.length;return `<div><div class="pop-tit"><div class="pop-t">${esc(g.t)}</div><div class="row">${ap(g.k,!sel.length)}<button class="btn small ${todas?'primary':''}" data-act="popTodas" data-g="${g.k}" aria-pressed="${todas}">Todas</button></div></div><div class="pop-chips">${g.ops.map(o=>{const on=sel.includes(o);return `<button class="btn small ${on?'primary':''}" data-act="popMulti" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${on}">${esc(o)}</button>`}).join('')}</div></div>`}).join('');
+  return una+multi;
+}
+function armPartes(m){
+  const a=armDe(m);if(!a||!pop.arm)return [];
+  const r=[];
+  a.una.forEach(g=>{const v=pop.arm.una[g.k];r.push((g.txt[v]||v)+(g.aparte&&pop.arm.ap[g.k]&&v!==g.sinAparte?' aparte':''))});
+  a.multi.forEach(g=>{
+    const sel=g.ops.filter(o=>(pop.arm.multi[g.k]||[]).includes(o)),falta=g.ops.filter(o=>!sel.includes(o));
+    if(!sel.length){if(g.vacio)r.push(g.vacio);return}
+    const lista=!falta.length?'todas':falta.length<sel.length?'todas menos '+falta.join(', '):sel.join(', ');
+    r.push(g.corto+': '+lista+(pop.arm.ap[g.k]?' (aparte)':''));
+  });
+  return r;
+}
 const extrasDe=m=>(S.cats.find(x=>x.id===m.cat)||{}).extras||[];
 const popExtras=m=>extrasDe(m).filter(x=>pop.ext.includes(x.n));
 const popUnit=m=>r2(pop.precio+popExtras(m).reduce((a,x)=>a+x.p,0));
 function popPintar(){
   const m=S.menu.find(x=>x.id===pop.pid),c=S.cats.find(x=>x.id===m.cat)||{};
-  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(popUnit(m))}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}${extrasDe(m).length?`<div><div class="pop-t">Agranda tu hamburguesa (opcional)</div><div class="pop-ext">${extrasDe(m).map(x=>{const on=pop.ext.includes(x.n);return `<button class="btn small ${on?'primary':''}" data-act="popExt" data-v="${esc(x.n)}" aria-pressed="${on}"><span>${esc(x.n)}</span><b>+${money(x.p)}</b></button>`}).join('')}</div></div>`:''}<div class="field"><label for="pop-nota">Nota para cocina (opcional)</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">${pop.editK!==undefined?'Guardar':'Agregar'} · ${money(popUnit(m)*pop.cant)}</button></div>`;
+  $('#pop-box').innerHTML=`<div class="pop-head"><div><b>${esc(m.nombre)}</b><div class="tk-det">${esc(c.n||'')}</div></div><span class="pop-price">${money(popUnit(m))}</span><button class="x" data-act="popClose" aria-label="Cerrar">✕</button></div><div class="pop-body">${prodGrupos(m).map(g=>`<div><div class="pop-t">${esc(g.t)}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${pop.sel[g.k]===o?'primary':''}" data-act="popSel" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${pop.sel[g.k]===o}">${esc(o)}</button>`).join('')}</div></div>`).join('')}${armHtml(m)}${extrasDe(m).length?`<div><div class="pop-t">Extras: agranda tu hamburguesa</div><div class="pop-ext">${extrasDe(m).map(x=>{const on=pop.ext.includes(x.n);return `<button class="btn small ${on?'primary':''}" data-act="popExt" data-v="${esc(x.n)}" aria-pressed="${on}"><span>${esc(x.n)}</span><b>+${money(x.p)}</b></button>`}).join('')}</div></div>`:''}<div class="field"><label for="pop-nota">${armDe(m)?'Observaciones (opcional)':'Nota para cocina (opcional)'}</label><input id="pop-nota" autocomplete="off" placeholder="Ej.: sin canela, bien caliente" value="${esc(pop.nota)}"></div><p class="err" id="pop-err" hidden></p></div><div class="pop-foot"><div class="qty"><button data-act="popCant" data-d="-1" aria-label="Quitar uno">−</button><span>${pop.cant}</span><button data-act="popCant" data-d="1" aria-label="Agregar uno">+</button></div><button class="btn primary" id="pop-add" data-act="popAdd">${pop.editK!==undefined?'Guardar':'Agregar'} · ${money(popUnit(m)*pop.cant)}</button></div>`;
 }
+function popGuardando(fn){const b=$('.pop-body'),sc=b?b.scrollTop:0;fn();popPintar();const n=$('.pop-body');if(n)n.scrollTop=sc}
 function popCerrar(){pop=null;$('#pop').hidden=true;$('#pop-box').innerHTML=''}
 const draftSub=d=>d.items.reduce((a,i)=>a+i.precio*i.cant,0);
 const draftCount=d=>d.items.reduce((a,i)=>a+i.cant,0);
@@ -1047,14 +1091,14 @@ const ACT={
   bview:d=>{if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}bview=d.v;redraw()},
   qtyPaso:d=>{const i=draft.items[+d.k];i.cant=Math.max(1,i.cant+ +d.d);if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
   qtyDel:d=>{draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
-  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:'',ext:[]};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
+  prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:'',ext:[],arm:armIni(m)};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
   popEdit:d=>{
     const k=+d.k,i=draft.items[k],m=S.menu.find(x=>x.id===i.pid);
     if(!m){toast('Este producto ya no está en la carta. Solo se puede eliminar.');return}
     if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}
     const partes=(i.op||'').split(' · '),sel={};
     prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
-    const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),editK:k};popPintar();$('#pop').hidden=false;
+    const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),arm:i.arm?clone(i.arm):armIni(m),editK:k};popPintar();$('#pop').hidden=false;
     if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus();
   },
   tkFiltro:d=>{ticketFiltro=d.f;render()},
@@ -1086,20 +1130,24 @@ const ACT={
   },
   popClose:()=>popCerrar(),
   popSel:d=>{pop.sel[d.g]=d.v;popPintar()},
+  popUna:d=>popGuardando(()=>{pop.arm.una[d.g]=d.v;const g=armDe(S.menu.find(x=>x.id===pop.pid)).una.find(x=>x.k===d.g);if(g.sinAparte===d.v)pop.arm.ap[d.g]=false}),
+  popMulti:d=>popGuardando(()=>{const l=pop.arm.multi[d.g];pop.arm.multi[d.g]=l.includes(d.v)?l.filter(x=>x!==d.v):[...l,d.v];if(!pop.arm.multi[d.g].length)pop.arm.ap[d.g]=false}),
+  popTodas:d=>popGuardando(()=>{const g=armDe(S.menu.find(x=>x.id===pop.pid)).multi.find(x=>x.k===d.g),l=pop.arm.multi[d.g];pop.arm.multi[d.g]=l.length===g.ops.length?[]:[...g.ops];if(!pop.arm.multi[d.g].length)pop.arm.ap[d.g]=false}),
+  popAp:d=>popGuardando(()=>{pop.arm.ap[d.g]=!pop.arm.ap[d.g]}),
   popExt:d=>{const b=$('.pop-body'),sc=b?b.scrollTop:0;pop.ext=pop.ext.includes(d.v)?pop.ext.filter(x=>x!==d.v):[...pop.ext,d.v];popPintar();const n=$('.pop-body');if(n)n.scrollTop=sc},
   popCant:d=>{pop.cant=Math.max(1,pop.cant+ +d.d);popPintar()},
   popAdd:()=>{
     const m=S.menu.find(x=>x.id===pop.pid),gs=prodGrupos(m),falta=gs.find(g=>!pop.sel[g.k]);
     if(falta)return err('#pop-err','Elija una opción para continuar.');
     const exts=popExtras(m),precio=popUnit(m);
-    const op=[...gs.map(g=>pop.sel[g.k]),...(exts.length?['+ '+exts.map(x=>x.n).join(' + ')]:[])].join(' · '),nota=pop.nota.trim();
+    const arm=pop.arm?clone(pop.arm):null,op=[...gs.map(g=>pop.sel[g.k]),...armPartes(m),...(exts.length?['+ '+exts.map(x=>x.n).join(' + ')]:[])].join(' · '),nota=pop.nota.trim();
     if(pop.editK!==undefined){
       const k=pop.editK,it=draft.items[k],otra=draft.items.find((i,j)=>j!==k&&i.pid===m.id&&i.op===op&&i.nota===nota);
-      if(otra){otra.cant+=pop.cant;draft.items.splice(k,1)}else Object.assign(it,{op,nota,cant:pop.cant,precio,ext:exts});
+      if(otra){otra.cant+=pop.cant;draft.items.splice(k,1)}else Object.assign(it,{op,nota,cant:pop.cant,precio,ext:exts,arm});
       popCerrar();paint.keep=true;redraw();toast(m.nombre+' actualizado');return;
     }
     const ex=draft.items.find(i=>i.pid===m.id&&i.op===op&&i.nota===nota);
-    if(ex)ex.cant+=pop.cant;else draft.items.push({pid:m.id,nombre:m.nombre,precio,cant:pop.cant,nota,op,ext:exts});
+    if(ex)ex.cant+=pop.cant;else draft.items.push({pid:m.id,nombre:m.nombre,precio,cant:pop.cant,nota,op,ext:exts,arm});
     const n=pop.cant;popCerrar();paint.keep=true;redraw();toast((n>1?n+' × ':'')+m.nombre+' agregado');
   },
   send:()=>{
