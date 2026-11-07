@@ -19,7 +19,7 @@ es público: no guardes aquí datos reales de clientes ni secretos.
 ## Cómo trabajar y publicar
 
 1. Antes de empezar: `git pull`. No editar en dos computadoras a la vez.
-2. Editar `index.html`. No usar `.bar` ni depender de una base de datos: todavía no existe.
+2. Editar `index.html`. Todavía no existe base de datos: no dependas de una.
 3. Revisar la sintaxis: extraer lo que hay entre `<script>` y `</script>` y correr `node --check`.
 4. Probar en tamaño laptop (1300 × 760) y celular (375 × 812). Usar Dueño para ver todas las pantallas.
 5. `git add index.html`, commit en español y `git push origin main`. GitHub Pages tarda uno o dos minutos.
