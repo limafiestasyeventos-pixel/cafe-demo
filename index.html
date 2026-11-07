@@ -270,6 +270,12 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .pop-ops .btn{flex-direction:column;gap:0;line-height:1.2}
 .pop-ops small{display:block;font-size:11px;font-weight:400;opacity:.85}
 .pop-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pop-chips .btn.cr-n{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.pop-chips .btn.cr-h{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.pop-chips .btn.cr-p{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.pop-tit .btn.ap-on{background:var(--warn);border-color:var(--warn);color:var(--surface);font-weight:700}
+.pop-ley{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);margin-bottom:6px}
+.pop-ley i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
 .pop-chips .btn{border-radius:999px;flex:0 1 auto;min-height:34px;padding:4px 14px}
 .pop-ext{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:8px}
 .pop-ext .btn{justify-content:space-between;gap:6px;text-align:left;line-height:1.2;white-space:normal}
@@ -813,13 +819,19 @@ function prodGrupos(m){
 const armDe=m=>(S.cats.find(x=>x.id===m.cat)||{}).armado||null;
 function armIni(m){
   const a=armDe(m);if(!a)return null;
-  return {una:Object.fromEntries(a.una.map(g=>[g.k,g.def])),multi:Object.fromEntries(a.multi.map(g=>[g.k,[]])),ap:{}};
+  return {una:Object.fromEntries(a.una.map(g=>[g.k,g.def])),multi:Object.fromEntries(a.multi.map(g=>[g.k,{}])),ap:{}};
+}
+const NIVEL={n:'Normal',h:'Harta',p:'Poca'};
+function armNorm(arm){
+  Object.keys(arm.multi||{}).forEach(k=>{if(Array.isArray(arm.multi[k]))arm.multi[k]=Object.fromEntries(arm.multi[k].map(o=>[o,'n']))});
+  return arm;
 }
 function armHtml(m){
   const a=armDe(m);if(!a||!pop.arm)return '';
-  const ap=(k,off)=>`<button class="btn small ${pop.arm.ap[k]?'primary':''}" data-act="popAp" data-g="${k}" aria-pressed="${!!pop.arm.ap[k]}" ${off?'disabled':''}>Aparte</button>`;
+  const ap=(k,off)=>`<button class="btn small ${pop.arm.ap[k]?'ap-on':''}" data-act="popAp" data-g="${k}" aria-pressed="${!!pop.arm.ap[k]}" ${off?'disabled':''}>${pop.arm.ap[k]?'✓ ':''}Aparte</button>`;
   const una=a.una.map(g=>{const on=pop.arm.una[g.k];return `<div><div class="pop-tit"><div class="pop-t">${esc(g.t)}</div>${g.aparte?ap(g.k,on===g.sinAparte):''}</div><div class="pop-ops">${g.ops.map(o=>`<button class="btn small ${on===o?'primary':''}" data-act="popUna" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${on===o}">${esc(o)}${g.ayuda?`<small>${esc(g.ayuda[o])}</small>`:''}</button>`).join('')}</div></div>`}).join('');
-  const multi=a.multi.map(g=>{const sel=pop.arm.multi[g.k]||[],todas=sel.length===g.ops.length;return `<div><div class="pop-tit"><div class="pop-t">${esc(g.t)}</div><div class="row">${ap(g.k,!sel.length)}<button class="btn small ${todas?'primary':''}" data-act="popTodas" data-g="${g.k}" aria-pressed="${todas}">Todas</button></div></div><div class="pop-chips">${g.ops.map(o=>{const on=sel.includes(o);return `<button class="btn small ${on?'primary':''}" data-act="popMulti" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${on}">${esc(o)}</button>`}).join('')}</div></div>`}).join('');
+  const ley=`<div class="pop-ley"><span>Toque la crema:</span><span><i style="background:var(--brand)"></i>1 normal</span><span><i style="background:var(--bad)"></i>2 harta</span><span><i style="background:var(--ok)"></i>3 poca</span><span>4 quitar</span></div>`;
+  const multi=a.multi.map((g,ix)=>{const sel=pop.arm.multi[g.k]||{},nSel=g.ops.filter(o=>sel[o]).length,todas=nSel===g.ops.length;return `<div><div class="pop-tit"><div class="pop-t">${esc(g.t)}</div><div class="row">${ap(g.k,!nSel)}<button class="btn small ${todas?'primary':''}" data-act="popTodas" data-g="${g.k}" aria-pressed="${todas}">Todas</button></div></div>${ix===0?ley:""}<div class="pop-chips">${g.ops.map(o=>{const lv=sel[o];return `<button class="btn small ${lv?'cr-'+lv:''}" data-act="popMulti" data-g="${g.k}" data-v="${esc(o)}" aria-pressed="${!!lv}" aria-label="${esc(o)}${lv?': '+NIVEL[lv]:''}">${esc(o)}${lv&&lv!=='n'?' · '+NIVEL[lv]:''}</button>`}).join('')}</div></div>`}).join('');
   return una+multi;
 }
 function armPartes(m){
@@ -827,9 +839,11 @@ function armPartes(m){
   const r=[];
   a.una.forEach(g=>{const v=pop.arm.una[g.k];r.push((g.txt[v]||v)+(g.aparte&&pop.arm.ap[g.k]&&v!==g.sinAparte?' aparte':''))});
   a.multi.forEach(g=>{
-    const sel=g.ops.filter(o=>(pop.arm.multi[g.k]||[]).includes(o)),falta=g.ops.filter(o=>!sel.includes(o));
+    const niv=pop.arm.multi[g.k]||{},sel=g.ops.filter(o=>niv[o]),falta=g.ops.filter(o=>!niv[o]);
     if(!sel.length){if(g.vacio)r.push(g.vacio);return}
-    const lista=!falta.length?'todas':falta.length<sel.length?'todas menos '+falta.join(', '):sel.join(', ');
+    const conNivel=o=>o+(niv[o]==='n'?'':' '+NIVEL[niv[o]].toLowerCase());
+    const dist=sel.filter(o=>niv[o]!=='n');
+    const lista=falta.length<sel.length?(falta.length?'todas menos '+falta.join(', '):'todas')+(dist.length?' ('+dist.map(conNivel).join(', ')+')':''):sel.map(conNivel).join(', ');
     r.push(g.corto+': '+lista+(pop.arm.ap[g.k]?' (aparte)':''));
   });
   return r;
@@ -1098,7 +1112,7 @@ const ACT={
     if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}
     const partes=(i.op||'').split(' · '),sel={};
     prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
-    const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),arm:i.arm?clone(i.arm):armIni(m),editK:k};popPintar();$('#pop').hidden=false;
+    const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),arm:i.arm?armNorm(clone(i.arm)):armIni(m),editK:k};popPintar();$('#pop').hidden=false;
     if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus();
   },
   tkFiltro:d=>{ticketFiltro=d.f;render()},
@@ -1131,8 +1145,8 @@ const ACT={
   popClose:()=>popCerrar(),
   popSel:d=>{pop.sel[d.g]=d.v;popPintar()},
   popUna:d=>popGuardando(()=>{pop.arm.una[d.g]=d.v;const g=armDe(S.menu.find(x=>x.id===pop.pid)).una.find(x=>x.k===d.g);if(g.sinAparte===d.v)pop.arm.ap[d.g]=false}),
-  popMulti:d=>popGuardando(()=>{const l=pop.arm.multi[d.g];pop.arm.multi[d.g]=l.includes(d.v)?l.filter(x=>x!==d.v):[...l,d.v];if(!pop.arm.multi[d.g].length)pop.arm.ap[d.g]=false}),
-  popTodas:d=>popGuardando(()=>{const g=armDe(S.menu.find(x=>x.id===pop.pid)).multi.find(x=>x.k===d.g),l=pop.arm.multi[d.g];pop.arm.multi[d.g]=l.length===g.ops.length?[]:[...g.ops];if(!pop.arm.multi[d.g].length)pop.arm.ap[d.g]=false}),
+  popMulti:d=>popGuardando(()=>{const l=pop.arm.multi[d.g],sig={undefined:'n',n:'h',h:'p',p:undefined}[l[d.v]];if(sig)l[d.v]=sig;else delete l[d.v];if(!Object.keys(l).length)pop.arm.ap[d.g]=false}),
+  popTodas:d=>popGuardando(()=>{const g=armDe(S.menu.find(x=>x.id===pop.pid)).multi.find(x=>x.k===d.g),l=pop.arm.multi[d.g];if(g.ops.every(o=>l[o])){pop.arm.multi[d.g]={};pop.arm.ap[d.g]=false}else g.ops.forEach(o=>{if(!l[o])l[o]='n'})}),
   popAp:d=>popGuardando(()=>{pop.arm.ap[d.g]=!pop.arm.ap[d.g]}),
   popExt:d=>{const b=$('.pop-body'),sc=b?b.scrollTop:0;pop.ext=pop.ext.includes(d.v)?pop.ext.filter(x=>x!==d.v):[...pop.ext,d.v];popPintar();const n=$('.pop-body');if(n)n.scrollTop=sc},
   popCant:d=>{pop.cant=Math.max(1,pop.cant+ +d.d);popPintar()},
