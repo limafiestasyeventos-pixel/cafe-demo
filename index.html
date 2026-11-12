@@ -233,6 +233,10 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 .steps{list-style:none;margin:0;padding:0 18px 12px;display:flex;gap:6px}
 .steps li{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted);border-top:3px solid var(--line);padding-top:7px}
 .steps li span{flex:none;width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--ink);font-size:12px;font-weight:600;display:grid;place-items:center}
+.steps button{display:flex;align-items:center;gap:6px;width:100%;background:none;border:0;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-radius:6px}
+.steps button:disabled{cursor:default}
+.steps button:not(:disabled):hover{text-decoration:underline}
+.steps button:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
 .steps li.on{color:var(--brand);font-weight:600;border-top-color:var(--brand)}
 .steps li.on span{background:var(--brand);color:var(--on-brand)}
 .steps li.done{border-top-color:var(--ok)}
@@ -874,7 +878,7 @@ function sheetBuilder(){
 function startBuilder(d){draft=Object.assign({items:[]},d);bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetBuilder)}
 
 // ---------- Delivery en 3 pasos ----------
-const stepsHtml=n=>`<ol class="steps">${['Cliente','Productos','Pago'].map((t,i)=>`<li class="${i+1===n?'on':i+1<n?'done':''}" ${i+1===n?'aria-current="step"':''}><span>${i+1<n?'✓':i+1}</span>${t}</li>`).join('')}</ol>`;
+const stepsHtml=n=>`<ol class="steps">${['Cliente','Productos','Pago'].map((t,i)=>`<li class="${i+1===n?'on':i+1<n?'done':''}" ${i+1===n?'aria-current="step"':''}><button data-act="wzIr" data-n="${i+1}" ${i+1===n?'disabled':''} aria-label="Ir al paso ${i+1}: ${t}"><span>${i+1<n?'✓':i+1}</span>${t}</button></li>`).join('')}</ol>`;
 const envioD=d=>d.tipo==='recoger'?0:(d.cliente.envio||0);
 const tituloWiz=d=>{if(d.editId){const p=find(d.editId);return 'Editar ticket '+(p?num(p):'')}return d.tipo==='recoger'?'Nuevo pedido para recoger':'Nuevo delivery'};
 const vueltoD=d=>{
@@ -1073,6 +1077,16 @@ const ACT={
       if(e)return err('#w-err',e);
     }
     draft.paso++;bview='menu';redraw();
+  },
+  wzIr:d=>{
+    const n=+d.n;
+    if(n<draft.paso){draft.paso=n;bview='menu';redraw();return}
+    while(draft.paso<n){
+      const p=draft.paso;
+      if(p===2&&!draft.items.length){toast('Agregue al menos un producto antes de ir al pago.');break}
+      ACT.wzNext();
+      if(draft.paso===p)break;
+    }
   },
   wzBack:()=>{draft.paso--;bview='menu';redraw()},
   wzPago:d=>{const c=$('#w-con');if(c)draft.pagaCon=c.value;draft.pagoSel=d.p;redraw()},
