@@ -6,27 +6,28 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Poppins:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Poppins:wght@400;500;600&display=swap">
 <style>
-/* Diseño: app de una columna pensada para el celular del mesero; barra inferior con las pantallas del rol y hojas que suben para tomar pedidos. Colores tomados de la carta (crema + azul rey). */
+/* Diseño: app de una columna pensada para el celular del mesero; barra inferior con las pantallas del rol y hojas que suben para tomar pedidos. Paleta de cafetería: latte, crema, espresso, caramelo y oliva, en tonos tenues. */
 :root{
-  --bg:#FBF6EC; --surface:#FFFFFF; --ink:#13235B; --muted:#5D678E; --line:#E6DDCA;
-  --brand:#1239A6; --on-brand:#FFFFFF; --soft:#E6ECFF;
-  --ok:#1D7F46; --ok-soft:#DCF2E4; --warn:#9A5B00; --warn-soft:#FCEBCB; --bad:#B8302A; --bad-soft:#FBE0DD;
-  --shade:rgba(19,35,91,.08); --scrim:rgba(10,16,40,.45); --tk-head:#13235B; --tk-on:#FFFFFF;
-  --f-display:"Bricolage Grotesque","Poppins",system-ui,sans-serif;
+  --bg:#E8DED1; --surface:#F6F0E7; --ink:#2F2119; --muted:#6B5646; --line:#D5C5B1;
+  --brand:#5B3923; --on-brand:#F6F0E7; --soft:#E2D2BF;
+  --ok:#4A6840; --ok-soft:#DCE4D1; --warn:#8A531E; --warn-soft:#EFDDC4; --bad:#9E4237; --bad-soft:#EED6CF;
+  --shade:rgba(47,33,25,.12); --scrim:rgba(33,22,15,.5); --tk-head:#3E2819; --tk-on:#F6F0E7;
+  --mesa:#7A5068;
+  --f-display:"Fraunces",Georgia,"Times New Roman",serif;
   --f-body:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0E1326; --surface:#161D36; --ink:#EEF1FF; --muted:#9BA5CA; --line:#283157;
-  --brand:#7C97FF; --on-brand:#0B1020; --soft:#1E2852;
-  --ok:#55C88A; --ok-soft:#14352A; --warn:#F2B04A; --warn-soft:#3A2B10; --bad:#FF8076; --bad-soft:#401A17;
-  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); --tk-head:#2A3A86; --tk-on:#FFFFFF; color-scheme:dark}}
+  --bg:#1D1612; --surface:#291F19; --ink:#F0E5D7; --muted:#B49F8C; --line:#41322A;
+  --brand:#D3A06B; --on-brand:#1D1612; --soft:#3A2B21;
+  --ok:#93B587; --ok-soft:#25301F; --warn:#DDA765; --warn-soft:#3A2A18; --bad:#E08A7D; --bad-soft:#3E211C;
+  --shade:rgba(0,0,0,.4); --scrim:rgba(0,0,0,.6); --tk-head:#3E2819; --tk-on:#F0E5D7; --mesa:#C49AB2; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0E1326; --surface:#161D36; --ink:#EEF1FF; --muted:#9BA5CA; --line:#283157;
-  --brand:#7C97FF; --on-brand:#0B1020; --soft:#1E2852;
-  --ok:#55C88A; --ok-soft:#14352A; --warn:#F2B04A; --warn-soft:#3A2B10; --bad:#FF8076; --bad-soft:#401A17;
-  --shade:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.6); --tk-head:#2A3A86; --tk-on:#FFFFFF; color-scheme:dark}
+  --bg:#1D1612; --surface:#291F19; --ink:#F0E5D7; --muted:#B49F8C; --line:#41322A;
+  --brand:#D3A06B; --on-brand:#1D1612; --soft:#3A2B21;
+  --ok:#93B587; --ok-soft:#25301F; --warn:#DDA765; --warn-soft:#3A2A18; --bad:#E08A7D; --bad-soft:#3E211C;
+  --shade:rgba(0,0,0,.4); --scrim:rgba(0,0,0,.6); --tk-head:#3E2819; --tk-on:#F0E5D7; --mesa:#C49AB2; color-scheme:dark}
 
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
@@ -93,7 +94,7 @@ h2.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--
 /* Tickets */
 .tk-busca{box-sizing:border-box;width:100%;margin-bottom:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit}
 .trow{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--muted);border-radius:14px;padding:12px 14px;display:grid;gap:10px;grid-template-columns:auto minmax(0,1fr);align-items:start;overflow-wrap:anywhere}
-.trow.t-mesa{border-left-color:#7B3FC4}
+.trow.t-mesa{border-left-color:var(--mesa)}
 .trow.t-recoger{border-left-color:var(--ok)}
 .trow.t-delivery{border-left-color:var(--brand)}
 .trow.t-llevar{border-left-color:var(--warn)}

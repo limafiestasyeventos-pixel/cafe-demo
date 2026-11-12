@@ -81,6 +81,11 @@ El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
 - La carta de burgers se dejó tal como está en la imagen del dueño, incluidas sus dudas de escritura y de precio en los
   productos 12 y 13. No corregirla sin que él lo pida.
 
+**Diseño**
+- Paleta de cafetería, en tonos tenues y no muy claros: fondo latte, superficies crema, café espresso para botones y
+  textos, caramelo y oliva como acentos. Títulos en Fraunces y textos en Poppins.
+- Los colores están en las variables de `:root`, con su versión oscura. No cambiarlos sin que el dueño lo pida.
+
 **Google Maps**
 - Campos Dirección y Distrito o ciudad; este último viene con la ciudad del negocio (Admin → Negocio).
 - Botón Probar en Google Maps y enlace opcional de ubicación exacta del cliente.
