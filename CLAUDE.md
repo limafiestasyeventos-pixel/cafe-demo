@@ -15,6 +15,7 @@ es público: no guardes aquí datos reales de clientes ni secretos.
 | Enlace público | https://limafiestasyeventos-pixel.github.io/cafe-demo/ (GitHub Pages, rama `main`) |
 | Diagrama, PDF y su generador | Repositorio privado `limafiestasyeventos-pixel/cafe-demo-docs`; lee su README |
 | Datos | `localStorage`, clave `cafe-demo-v1`. Cada navegador tiene los suyos |
+| Base de datos (en preparación) | Supabase, plan gratis, región São Paulo. Tablas y seguridad en `supabase/01-tablas.sql` |
 
 ## Cómo trabajar y publicar
 
@@ -99,6 +100,13 @@ El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
 1. **Conectar la base de datos (el siguiente paso grande).** Hoy los equipos no comparten pedidos. Plan: Supabase con
    `negocio_id` y seguridad por fila, tiempo real e inicio de sesión. Antes de usar datos reales de clientes hay que
    agregar inicio de sesión: hoy cualquiera con el enlace abre el sistema y elige un rol.
+   - Etapas: 1) cuenta y tablas, 2) inicio de sesión y roles, 3) pantallas conectadas en tiempo real, 4) pasar la carta,
+     5) prueba con varios equipos.
+   - `supabase/01-tablas.sql`: negocios, miembros (roles `dueno`, `cajero`, `mesero`, `cocina`, `moto`), invitaciones por
+     correo, categorías, productos, clientes, pedidos (detalle en `datos` jsonb; el número `n` lo pone la base de datos) y
+     `mesas_estado` (cuenta, reserva, `unida_a`). Seguridad por fila con `es_miembro()` y `mi_rol()`; funciones
+     `crear_negocio()` y `aceptar_invitaciones()`. Se probó con PGlite; se puede volver a correr.
+   - Solo la clave pública (publishable) va en la página. La secreta nunca se pide ni se escribe.
 2. Confirmar con el dueño que PH significa papa hilo (lo dijo por voz como "papa lilo").
 3. Posibles mejoras, solo si él las pide: extras con cantidad y "Carne clásica", cambiar papas y cremas desde Admin,
    vuelto en efectivo de mesa y para llevar, Ambos con tarjeta, boletas o facturas.
