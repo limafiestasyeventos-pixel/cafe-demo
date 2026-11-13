@@ -46,6 +46,9 @@ El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
 - Delivery y Recoger: los toma quien atiende WhatsApp, en la laptop. Recoger pide solo el nombre.
 - El pedido de Recoger lo puede entregar el mesero o Caja.
 - Separar mesa: lo hacen Caja o Dueño, con nombre y hora. Una separación por mesa y solo en mesas libres.
+- Unir mesas (grupos grandes): desde una mesa se juntan otras mesas libres (`S.uniones`: mesa unida → principal). Queda
+  "Mesa 2 + 3", con una sola cuenta y comanda a nombre de la principal. Al cobrar se separan solas; "Separar mesas" las
+  libera y la cuenta queda en la principal. No se unen mesas ocupadas ni separadas.
 
 **Asistente de delivery: 3 pasos**
 - Cliente, Productos y Pago.

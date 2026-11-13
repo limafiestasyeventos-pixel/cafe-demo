@@ -90,6 +90,11 @@ h2.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--
 .mesa.st-separada{border-style:dashed;border-color:var(--brand);background:var(--soft)}
 .mesa.st-separada .chip{background:var(--brand);color:var(--surface)}
 .mesa.st-separada .mt{color:var(--brand);font-weight:600}
+.mesa.st-unida{border-style:dotted;border-color:var(--muted);background:transparent}
+.mesa.st-unida .chip{background:var(--soft);color:var(--ink)}
+.unir-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.unir-g .btn{flex-direction:column;gap:2px;min-height:64px}
+.unir-g small{font-size:11px;font-weight:400;opacity:.85}
 
 /* Tickets */
 .tk-busca{box-sizing:border-box;width:100%;margin-bottom:12px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit}
@@ -489,7 +494,7 @@ const NAV={
 const KEY='cafe-demo-v1';
 let S;
 const clone=o=>JSON.parse(JSON.stringify(o));
-function blank(keep){return {seq:0,pedidos:[],clientes:{},cuenta:{},reservas:{},anulados:[],menu:keep?keep.menu:clone(DEF_MENU),cats:keep?keep.cats:clone(DEF_CATS),config:keep?keep.config:clone(DEF_CONFIG),personal:keep?keep.personal:clone(DEF_PERSONAL)}}
+function blank(keep){return {seq:0,pedidos:[],clientes:{},cuenta:{},reservas:{},anulados:[],uniones:{},menu:keep?keep.menu:clone(DEF_MENU),cats:keep?keep.cats:clone(DEF_CATS),config:keep?keep.config:clone(DEF_CONFIG),personal:keep?keep.personal:clone(DEF_PERSONAL)}}
 function seed(){
   const s=blank(),now=Date.now(),m=60000,by=n=>DEF_MENU.find(x=>x.nombre===n);
   const L=rows=>rows.map(([n,c,nota,op])=>({pid:by(n).id,nombre:n,precio:by(n).precio,cant:c,nota:nota||'',op:op||''}));
@@ -514,6 +519,7 @@ function migrate(s){
   if(!s.config)s.config=clone(DEF_CONFIG);
   if(!s.personal)s.personal=clone(DEF_PERSONAL);
   if(!s.reservas)s.reservas={};
+  if(!s.uniones)s.uniones={};
   if(!s.anulados)s.anulados=[];
   if(!s.cartaBurgers){
     if(!s.cats.some(c=>c.id==='bur')){
@@ -546,7 +552,7 @@ const sub=p=>p.items.reduce((a,i)=>a+i.precio*i.cant,0);
 const tot=p=>sub(p)+(p.envio||0);
 const num=p=>'#'+String(p.n).padStart(3,'0');
 const hoy=p=>new Date(p.creado).toDateString()===new Date().toDateString();
-const quien=p=>p.tipo==='mesa'?'Mesa '+p.mesa:p.tipo==='llevar'?'Para llevar · '+esc(p.cliente.nombre):p.tipo==='recoger'?'Recoger · '+esc(p.cliente.nombre):'Delivery · '+esc(p.cliente.nombre);
+const quien=p=>p.tipo==='mesa'?(p.pagado?'Mesa '+p.mesa:mesaNom(p.mesa)):p.tipo==='llevar'?'Para llevar · '+esc(p.cliente.nombre):p.tipo==='recoger'?'Recoger · '+esc(p.cliente.nombre):'Delivery · '+esc(p.cliente.nombre);
 const chip=e=>`<span class="chip ${e}">${ESTADOS[e]}</span>`;
 const itemsHtml=p=>'<ul class="items">'+p.items.map(i=>`<li><span class="q">${i.cant}×</span><span>${esc(i.nombre)}${i.op?` <em>(${esc(i.op)})</em>`:''}${i.nota?`<small class="nota">${esc(i.nota)}</small>`:''}</span></li>`).join('')+'</ul>';
 const espera=t=>{const m=mins(t);return `<span class="wait ${m>=20?'w2':m>=10?'w1':''}">${m} min</span>`};
@@ -609,7 +615,10 @@ let sheetFn=null, draft=null, bcat=null, bview='menu', motoSel=new Set(), adminT
 
 const puedeSeparar=()=>rol==='cajero'||rol==='dueno';
 const hora12=h=>{const [a,b]=h.split(':').map(Number);return `${a%12||12}:${String(b).padStart(2,'0')} ${a<12?'a. m.':'p. m.'}`};
+const unidasDe=n=>Object.keys(S.uniones).filter(k=>S.uniones[k]===n).map(Number).sort((a,b)=>a-b);
+const mesaNom=n=>'Mesa '+[n,...unidasDe(n)].join(' + ');
 function mesaInfo(n){
+  if(S.uniones[n])return {st:'unida',ps:[],total:0,principal:S.uniones[n]};
   const ps=S.pedidos.filter(p=>p.tipo==='mesa'&&p.mesa===n&&!p.pagado);
   if(!ps.length){const res=S.reservas[n];return res?{st:'separada',ps,total:0,res}:{st:'libre',ps,total:0}}
   const st=S.cuenta[n]?'cuenta':ps.some(p=>p.estado==='listo')?'listo':'ocupada';
@@ -630,7 +639,7 @@ function ticketsLista(){
   if(!lista.length)return '<div class="empty">No hay tickets para mostrar.</div>';
   const tipoN={mesa:'Mesa',llevar:'Para llevar',recoger:'Recoger',delivery:'Delivery'};
   return lista.map(p=>{
-    const c=p.cliente||{},nombre=p.tipo==='mesa'?'Mesa '+p.mesa:esc(c.nombre);
+    const c=p.cliente||{},nombre=p.tipo==='mesa'?(p.pagado?'Mesa '+p.mesa:mesaNom(p.mesa)):esc(c.nombre);
     const anulado=!!p.anulado,puede=editable(p);
     const motivo=anulado?'':p.estado==='en_camino'?'<span class="note">Ya salió en la moto</span>':puede?'':'<span class="note">Ya entregado o cobrado</span>';
     return `<div class="trow t-${p.tipo} ${anulado?'off':''}"><div class="t-num">${num(p)}</div><div class="t-info"><div class="t-name">${nombre}</div><div class="t-chips"><span class="chip">${tipoN[p.tipo]}</span>${anulado?'<span class="chip anulado">Anulado</span>':chip(p.estado)}${chipEdit(p)}<span class="meta">${hora(p.creado)}</span>${c.cel?`<span class="meta num">${esc(c.cel)}</span>`:''}</div><div class="t-items">${p.items.map(i=>`${i.cant}× ${esc(i.nombre)}${i.op?` <span class="meta">(${esc(i.op)})</span>`:''}`).join(' · ')}</div>${c.dir?`<div class="meta">${esc(dirTxt(c))}</div>`:''}${p.editado?`<div class="t-cambio">Editado a las ${hora(p.editado.en)}${p.editado.cambios.length?': '+esc(p.editado.cambios.join(' · ')):': datos o pago'}</div>`:''}</div><div class="t-der"><div><div class="t-total">${money(tot(p))}</div><div class="meta">${esc(metodoTxt(p))}</div></div><div class="t-btns">${c.cel&&!anulado?`<a class="btn small" href="tel:+51${esc(c.cel)}">Llamar</a>`:''}${puede?`<button class="btn small primary" data-act="tkEdit" data-id="${p.id}">Editar</button><button class="btn small danger" data-act="tkAnular" data-id="${p.id}">Anular</button>`:motivo}</div></div></div>`;
@@ -638,10 +647,11 @@ function ticketsLista(){
 }
 const VIEWS={
 mesas(){
-  const lab={libre:'Libre',separada:'Separada',ocupada:'Ocupada',listo:'Listo para servir',cuenta:'Pidió la cuenta'};
+  const lab={libre:'Libre',unida:'Unida',separada:'Separada',ocupada:'Ocupada',listo:'Listo para servir',cuenta:'Pidió la cuenta'};
   let h=`<div class="vhead"><div><h1>Mesas</h1><p>Toca una mesa para tomar el pedido, servir lo que está listo o cobrar.</p></div></div><div class="mesas">`;
   for(let n=1;n<=S.config.mesas;n++){const m=mesaInfo(n);
-    h+=`<button class="mesa st-${m.st}" data-act="mesa" data-n="${n}"><span class="mn">Mesa ${n}</span><span class="chip">${lab[m.st]}</span><span class="mt money">${m.st==='libre'?'Disponible':m.st==='separada'?esc(m.res.nombre)+' · '+hora12(m.res.hora):money(m.total)+' · hace '+mins(m.desde)+' min'}</span></button>`}
+    if(m.st==='unida'){h+=`<button class="mesa st-unida" data-act="mesa" data-n="${m.principal}"><span class="mn">Mesa ${n}</span><span class="chip">Unida a la Mesa ${m.principal}</span><span class="mt">Toque para ver la cuenta</span></button>`;continue}
+    h+=`<button class="mesa st-${m.st}" data-act="mesa" data-n="${n}"><span class="mn">${mesaNom(n)}</span><span class="chip">${lab[m.st]}</span><span class="mt money">${m.st==='libre'?(unidasDe(n).length?'Mesas unidas · disponibles':'Disponible'):m.st==='separada'?esc(m.res.nombre)+' · '+hora12(m.res.hora):money(m.total)+' · hace '+mins(m.desde)+' min'}</span></button>`}
   const ll=[...llevarActivos(),...recogerActivos()],lis=ll.filter(p=>p.estado==='listo').length;
   h+=`<button class="mesa st-llevar" data-act="llevar"><span class="mn">Para llevar y recoger</span><span class="chip ${lis?'listo':''}">${lis?lis+' listo'+(lis>1?'s':'')+' para entregar':ll.length?ll.length+' en preparación':'En mostrador'}</span><span class="mt">Clientes que vienen por su pedido</span></button></div>`;
   return h;
@@ -770,30 +780,43 @@ function paint(html){
 
 function sheetSeparar(n){return()=>{
   if(mesaInfo(n).st!=='libre'){closeSheet();return}
-  paint(head('Mesa '+n,'Separar mesa')+`<div class="sh-body"><p class="note" style="margin:0">Para el cliente que escribe por WhatsApp y avisa que viene a comer.</p><div class="field"><label for="s-nom">Nombre del cliente</label><input id="s-nom" autocomplete="off"></div><div class="two"><div class="field"><label for="s-hora">Hora de llegada</label><input id="s-hora" type="time"></div><div class="field"><label for="s-per">Personas (opcional)</label><input id="s-per" type="number" min="1" inputmode="numeric"></div></div><p class="err" id="s-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver</button><button class="btn primary" data-act="sepSave" data-n="${n}">Separar mesa ${n}</button></div>`);
+  paint(head(mesaNom(n),'Separar mesa')+`<div class="sh-body"><p class="note" style="margin:0">Para el cliente que escribe por WhatsApp y avisa que viene a comer.</p><div class="field"><label for="s-nom">Nombre del cliente</label><input id="s-nom" autocomplete="off"></div><div class="two"><div class="field"><label for="s-hora">Hora de llegada</label><input id="s-hora" type="time"></div><div class="field"><label for="s-per">Personas (opcional)</label><input id="s-per" type="number" min="1" inputmode="numeric"></div></div><p class="err" id="s-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver</button><button class="btn primary" data-act="sepSave" data-n="${n}">Separar mesa ${n}</button></div>`);
+}}
+let unirSel=new Set();
+function sheetUnir(n){return()=>{
+  const opciones=[...Array(S.config.mesas)].map((_,i)=>i+1).filter(k=>k!==n).map(k=>{
+    const m=mesaInfo(k),ya=S.uniones[k]===n,puede=ya||(m.st==='libre'&&!unidasDe(k).length);
+    const motivo=ya?'Unida':m.st==='unida'?'Unida a la '+m.principal:m.st==='separada'?'Separada':m.st==='libre'?'Libre':'Ocupada';
+    return `<button class="btn ${unirSel.has(k)?'primary':''}" data-act="unirSel" data-k="${k}" data-n="${n}" aria-pressed="${unirSel.has(k)}" ${puede?'':'disabled'}>Mesa ${k}<small>${unirSel.has(k)?'Se une':motivo}</small></button>`;
+  }).join('');
+  const lista=[n,...[...unirSel].sort((a,b)=>a-b)];
+  paint(head(mesaNom(n),'Unir mesas')+`<div class="sh-body"><p class="note" style="margin:0">Toque las mesas libres que se juntan con la Mesa ${n}. Tendrán una sola cuenta y una sola comanda, a nombre de la Mesa ${n}.</p><div class="unir-g">${opciones}</div><div class="vuelto">${lista.length>1?'Quedará como <b>Mesa '+lista.join(' + ')+'</b>.':'Ninguna mesa elegida: la Mesa '+n+' queda sola.'}</div></div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver</button><button class="btn primary" data-act="unirGuardar" data-n="${n}">${lista.length>1?'Unir mesas':'Guardar'}</button></div>`);
 }}
 function sheetMesa(n){return()=>{
   const m=mesaInfo(n);
   if(m.st==='separada'){
     const r=m.res;
-    paint(head('Mesa '+n,'Separada')+`<div class="sh-body"><div class="card"><b>${esc(r.nombre)}</b><div>Llega a las <b>${hora12(r.hora)}</b>${r.personas?` · ${r.personas} persona${r.personas>1?'s':''}`:''}</div></div><p class="note" style="margin:0">Cuando llegue el cliente, tome su pedido: la mesa pasará a ocupada.</p></div><div class="sh-foot">${puedeSeparar()?`<button class="btn" data-act="sepQuitar" data-n="${n}">Quitar separación</button>`:''}<button class="btn primary" data-act="addMesa" data-n="${n}">Llegó el cliente: tomar pedido</button></div>`);
+    paint(head(mesaNom(n),'Separada')+`<div class="sh-body"><div class="card"><b>${esc(r.nombre)}</b><div>Llega a las <b>${hora12(r.hora)}</b>${r.personas?` · ${r.personas} persona${r.personas>1?'s':''}`:''}</div></div><p class="note" style="margin:0">Cuando llegue el cliente, tome su pedido: la mesa pasará a ocupada.</p></div><div class="sh-foot">${puedeSeparar()?`<button class="btn" data-act="sepQuitar" data-n="${n}">Quitar separación</button>`:''}<button class="btn primary" data-act="addMesa" data-n="${n}">Llegó el cliente: tomar pedido</button></div>`);
     return;
   }
   let b=m.ps.length?m.ps.map((p,i)=>`<div class="card"><div class="card-top"><span class="card-title">Ronda ${i+1} · ${num(p)} · ${hora(p.creado)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}<div class="spread"><span class="meta">Subtotal</span><span class="money">${money(tot(p))}</span></div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Ya lo serví</button>`:''}</div>`).join('')+`<div class="totals"><div class="spread"><span>Total de la mesa</span><span class="money">${money(m.total)}</span></div></div>`:`<div class="empty">La mesa está libre. Toca <b>Tomar pedido</b> cuando lleguen los clientes${puedeSeparar()?', o <b>Separar mesa</b> si la piden por WhatsApp':''}.</div>`;
   let f=`<button class="btn ${m.ps.length?'':'primary'}" data-act="addMesa" data-n="${n}">${m.ps.length?'+ Agregar algo más':'Tomar pedido'}</button>`;
   if(!m.ps.length&&puedeSeparar())f=`<button class="btn" data-act="sepForm" data-n="${n}">Separar mesa</button>`+f;
+  const otrasLibres=[...Array(S.config.mesas)].map((_,i)=>i+1).some(k=>k!==n&&mesaInfo(k).st==='libre'&&!unidasDe(k).length);
+  if(otrasLibres||unidasDe(n).length)f=`<button class="btn" data-act="unirForm" data-n="${n}">${unidasDe(n).length?'Cambiar mesas unidas':'Unir mesas'}</button>`+f;
+  if(unidasDe(n).length)f=`<button class="btn" data-act="unirQuitar" data-n="${n}">Separar mesas</button>`+f;
   if(m.ps.length)f+=`<button class="btn" data-act="cuenta" data-n="${n}">${S.cuenta[n]?'Quitar aviso de cuenta':'Pidió la cuenta'}</button><button class="btn primary" data-act="cobrar" data-n="${n}">Cobrar ${money(m.total)}</button>`;
-  paint(head('Mesa '+n,m.st==='libre'?'Libre':'Cuenta abierta')+`<div class="sh-body">${b}</div><div class="sh-foot">${f}</div>`);
+  paint(head(mesaNom(n),m.st==='libre'?'Libre':'Cuenta abierta')+`<div class="sh-body">${b}</div><div class="sh-foot">${f}</div>`);
 }}
 function sheetCobrar(n){return()=>{
   const m=mesaInfo(n);
   if(!m.ps.length){closeSheet();return}
-  paint(head('Mesa '+n+' · cobrar',money(m.total))+`<div class="sh-body"><p class="note" style="margin:0">¿Cómo pagó el cliente? Al elegir, la mesa queda libre.</p><div class="pay">${METODOS.map(x=>`<button class="btn" data-act="pagar" data-n="${n}" data-m="${x}">${x}</button>`).join('')}<button class="btn mx" data-act="cobrarMix" data-n="${n}">Ambos<small>Efectivo + Yape/Plin</small></button></div>${m.ps.map(itemsHtml).join('')}</div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver a la mesa</button></div>`);
+  paint(head(mesaNom(n)+' · cobrar',money(m.total))+`<div class="sh-body"><p class="note" style="margin:0">¿Cómo pagó el cliente? Al elegir, la mesa queda libre.</p><div class="pay">${METODOS.map(x=>`<button class="btn" data-act="pagar" data-n="${n}" data-m="${x}">${x}</button>`).join('')}<button class="btn mx" data-act="cobrarMix" data-n="${n}">Ambos<small>Efectivo + Yape/Plin</small></button></div>${m.ps.map(itemsHtml).join('')}</div><div class="sh-foot"><button class="btn ghost" data-act="mesa" data-n="${n}">← Volver a la mesa</button></div>`);
 }}
 function sheetCobrarMix(n){return()=>{
   const m=mesaInfo(n);
   if(!m.ps.length){closeSheet();return}
-  paint(head('Mesa '+n+' · cobrar',money(m.total))+`<div class="sh-body">${mixHtml(m.total,'local')}<p class="err" id="mx-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="cobrar" data-n="${n}">← Otra forma de pago</button><button class="btn primary" data-act="pagarMix" data-n="${n}">Cobrar ${money(m.total)}</button></div>`);
+  paint(head(mesaNom(n)+' · cobrar',money(m.total))+`<div class="sh-body">${mixHtml(m.total,'local')}<p class="err" id="mx-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="cobrar" data-n="${n}">← Otra forma de pago</button><button class="btn primary" data-act="pagarMix" data-n="${n}">Cobrar ${money(m.total)}</button></div>`);
 }}
 function sheetLlevar(){
   const ll=llevarActivos().sort((a,b)=>a.creado-b.creado);
@@ -879,7 +902,7 @@ const draftCount=d=>d.items.reduce((a,i)=>a+i.cant,0);
 
 function sheetBuilder(){
   const d=draft,count=draftCount(d),st=draftSub(d);
-  const eb=(d.editId?'Editar ticket · ':'')+(d.tipo==='mesa'?'Mesa '+d.mesa:'Para llevar');
+  const eb=(d.editId?'Editar ticket · ':'')+(d.tipo==='mesa'?mesaNom(d.mesa):'Para llevar');
   if(bview==='menu'){
     paint(head(eb,'Elige productos')+chipsHtml()+`<div class="sh-body">${prodsHtml(d)}</div><div class="sh-foot"><button class="btn primary" data-act="bview" data-v="cart" ${count?'':'disabled'}>${count?`Revisar pedido · ${count} producto${count>1?'s':''} · ${money(st)}`:'Toca + para agregar productos'}</button></div>`);
   } else {
@@ -1051,6 +1074,15 @@ const ACT={
   mesa:d=>openSheet(sheetMesa(+d.n)),
   llevar:()=>openSheet(sheetLlevar),
   addMesa:d=>startBuilder({tipo:'mesa',mesa:+d.n}),
+  unirForm:d=>{const n=+d.n;unirSel=new Set(unidasDe(n));openSheet(sheetUnir(n))},
+  unirSel:d=>{const k=+d.k;unirSel.has(k)?unirSel.delete(k):unirSel.add(k);redraw()},
+  unirGuardar:d=>{
+    const n=+d.n;
+    unidasDe(n).forEach(k=>{if(!unirSel.has(k))delete S.uniones[k]});
+    unirSel.forEach(k=>{S.uniones[k]=n});
+    openSheet(sheetMesa(n));commit(unirSel.size?mesaNom(n)+' unidas':'Mesa '+n+' sola otra vez');
+  },
+  unirQuitar:d=>{const n=+d.n;unidasDe(n).forEach(k=>delete S.uniones[k]);commit('Mesas separadas. La cuenta sigue en la Mesa '+n)},
   sepForm:d=>openSheet(sheetSeparar(+d.n)),
   sepSave:d=>{
     const n=+d.n,nombre=$('#s-nom').value.trim(),hora=$('#s-hora').value,per=parseInt($('#s-per').value,10);
@@ -1071,10 +1103,10 @@ const ACT={
     const monto=parseFloat(mix.monto),v=r2(parseFloat(mix.con)-r2(m.total-monto));
     let resto=monto;
     m.ps.forEach(p=>{const parte=Math.min(resto,tot(p));resto=r2(resto-parte);p.pagos=pagosMix(mix.otro,parte,tot(p));p.pagado=true;p.metodo=metodoDePagos(p.pagos);p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});
-    S.cuenta[n]=false;closeSheet();commit(`Mesa ${n} cobrada: ${money(m.total)}${v>0?' · dar '+money(v)+' de vuelto':''}. Mesa libre.`);
+    const nom=mesaNom(n),habia=unidasDe(n).length;unidasDe(n).forEach(k=>delete S.uniones[k]);S.cuenta[n]=false;closeSheet();commit(`${nom} cobrada: ${money(m.total)}${v>0?' · dar '+money(v)+' de vuelto':''}. ${habia?'Mesas libres y separadas.':'Mesa libre.'}`);
   },
   mixOtro:d=>{if(draft&&draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}mix.otro=d.o;paint.keep=true;redraw()},
-  pagar:d=>{const n=+d.n,m=mesaInfo(n);m.ps.forEach(p=>{p.pagado=true;p.metodo=d.m;p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});S.cuenta[n]=false;closeSheet();commit(`Mesa ${n} cobrada: ${money(m.total)} con ${d.m}. Mesa libre.`)},
+  pagar:d=>{const n=+d.n,m=mesaInfo(n);m.ps.forEach(p=>{p.pagado=true;p.metodo=d.m;p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});const nom=mesaNom(n),habia=unidasDe(n).length;unidasDe(n).forEach(k=>delete S.uniones[k]);S.cuenta[n]=false;closeSheet();commit(`${nom} cobrada: ${money(m.total)} con ${d.m}. ${habia?'Mesas libres y separadas.':'Mesa libre.'}`)},
   newDel:()=>{mix=mixVacio();draft={tipo:'delivery',paso:1,cliente:{lugar:S.config.ciudad||''},items:[],pagoSel:null,pagaCon:''};bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetWiz)},
   delDet:d=>openSheet(sheetDelDet(d.id)),
   wzTipo:d=>{wizLeerCliente();draft.tipo=d.t;redraw();if(d.t==='recoger'&&matchMedia('(min-width:860px)').matches)$('#w-nom').focus()},
@@ -1249,6 +1281,7 @@ const ACT={
     readNeg();const d=negDraft,mesas=parseInt(d.mesas,10);
     if(!d.nombre.trim())return err('#n-err','Escriba el nombre del negocio.');
     if(!(mesas>=1&&mesas<=30))return err('#n-err','La cantidad de mesas debe estar entre 1 y 30.');
+    if(Object.entries(S.uniones).some(([k,v])=>+k>mesas||v>mesas))return err('#n-err','Hay mesas unidas que se quitarían. Sepárelas antes de reducir las mesas.');
     const ocupada=S.pedidos.find(p=>p.tipo==='mesa'&&!p.pagado&&p.mesa>mesas);
     if(ocupada)return err('#n-err',`La mesa ${ocupada.mesa} tiene una cuenta abierta. Cóbrela antes de reducir las mesas.`);
     const sep=Object.keys(S.reservas).find(n=>+n>mesas);
