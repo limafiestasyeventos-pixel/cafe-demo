@@ -161,7 +161,12 @@ button.card{text-align:left;width:100%}
 .seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:16px;overflow-x:auto}
 .seg button{flex:1;border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:600;color:var(--muted);white-space:nowrap}
 .seg button.on{background:var(--brand);color:var(--on-brand)}
-.fchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+.fchips{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:6px;margin-bottom:8px}
+.card.catbar{flex-direction:row;text-align:left;}
+.catbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.arow .aside{flex-wrap:wrap;justify-content:flex-end}
+.chip.oculto{background:var(--soft);color:var(--muted)}
+@media (max-width:599px){.list .arow{grid-template-columns:minmax(0,1fr)}.list .arow .aside{justify-content:flex-start}}
 .fchips button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:500}
 .fchips button.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
 .arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
@@ -708,14 +713,19 @@ admin(){
 const ADMIN={
 carta(){
   if(adminCat!=='todas'&&!S.cats.some(c=>c.id===adminCat))adminCat='todas';
-  const ags=S.menu.filter(m=>m.agotado).length;
+  const ags=S.menu.filter(m=>m.agotado).length,ocs=S.menu.filter(m=>m.oculto).length;
   const lista=S.menu.filter(m=>adminCat==='todas'||m.cat===adminCat);
   const catN=id=>(S.cats.find(c=>c.id===id)||{n:'Sin categoría'}).n;
-  let h=`<div class="row" style="justify-content:space-between;margin-bottom:12px"><span class="note">${S.menu.length} productos · ${ags?`<b style="color:var(--bad)">${ags} agotado${ags>1?'s':''}</b>`:'todos disponibles'}</span><div class="row"><button class="btn small" data-act="catEdit">+ Categoría</button><button class="btn small primary" data-act="prodEdit">+ Producto</button></div></div>`;
-  h+=`<div class="fchips">${[{id:'todas',n:'Todas'},...S.cats].map(c=>`<button class="${adminCat===c.id?'on':''}" data-act="acat" data-c="${c.id}">${esc(c.n)}</button>`).join('')}</div>`;
-  if(adminCat!=='todas')h+=`<div class="row" style="margin-bottom:10px"><button class="btn small ghost" data-act="catEdit" data-id="${adminCat}">Renombrar o borrar “${esc(catN(adminCat))}”</button></div>`;
-  h+=lista.length?'<div class="list">'+lista.map(m=>`<div class="arow ${m.agotado?'off':''}"><button class="btn ghost" style="justify-content:flex-start;text-align:left;border:0;padding:0;min-height:0;display:block" data-act="prodEdit" data-id="${m.id}"><div class="an">${esc(m.nombre)}</div><div class="meta"><span class="money">${money(m.precio)}</span>${adminCat==='todas'?' · '+esc(catN(m.cat)):''}${m.ops?' · con opciones':''} · <u>Editar</u></div></button><div class="aside">${m.agotado?'<span class="chip off">Agotado</span>':''}<button class="sw ${m.agotado?'':'on'}" role="switch" aria-checked="${!m.agotado}" aria-label="${esc(m.nombre)} disponible" data-act="agotado" data-id="${m.id}"></button></div></div>`).join('')+'</div>':'<div class="empty">Esta categoría no tiene productos todavía.</div>';
-  h+=`<p class="note">El interruptor verde significa “disponible”. Apáguelo cuando se acabe algo: el mesero lo verá como agotado y no podrá pedirlo.</p>`;
+  const cuenta=id=>S.menu.filter(m=>m.cat===id).length;
+  const resumen=[S.menu.length+' productos',ags?`<b style="color:var(--bad)">${ags} agotado${ags>1?'s':''}</b>`:'',ocs?`${ocs} oculto${ocs>1?'s':''}`:''].filter(Boolean).join(' · ');
+  let h=`<div class="row" style="justify-content:space-between;margin-bottom:12px"><span class="note">${resumen}</span><div class="row"><button class="btn small" data-act="catEdit">+ Categoría</button><button class="btn small primary" data-act="prodEdit">+ Producto</button></div></div>`;
+  h+=`<div class="fchips">${[{id:'todas',n:'Todas'},...S.cats].map(c=>`<button class="${adminCat===c.id?'on':''}" data-act="acat" data-c="${c.id}">${esc(c.n)} (${c.id==='todas'?S.menu.length:cuenta(c.id)})</button>`).join('')}</div>`;
+  if(adminCat!=='todas'){
+    const n=cuenta(adminCat);
+    h+=`<div class="card catbar"><div><b>${esc(catN(adminCat))}</b> <span class="meta">· ${n} producto${n===1?'':'s'}</span></div><div class="row"><button class="btn small" data-act="catEdit" data-id="${adminCat}">Editar categoría</button><button class="btn small danger" data-act="catDel" data-id="${adminCat}">${n?`Borrar categoría y sus ${n} productos`:'Borrar categoría'}</button></div></div>`;
+  } else h+='<p class="note" style="margin:0 0 10px">Toque una categoría para editarla o borrarla.</p>';
+  h+=lista.length?'<div class="list">'+lista.map(m=>`<div class="arow ${m.agotado||m.oculto?'off':''}"><button class="btn ghost" style="justify-content:flex-start;text-align:left;border:0;padding:0;min-height:0;display:block" data-act="prodEdit" data-id="${m.id}"><div class="an">${esc(m.nombre)}</div><div class="meta"><span class="money">${money(m.precio)}</span>${adminCat==='todas'?' · '+esc(catN(m.cat)):''}${m.ops?' · con opciones':''} · <u>Editar</u></div></button><div class="aside">${m.oculto?'<span class="chip oculto">Oculto</span>':''}${m.agotado?'<span class="chip off">Agotado</span>':''}<button class="btn small" data-act="prodOcultar" data-id="${m.id}">${m.oculto?'Mostrar':'Ocultar'}</button><button class="btn small danger" data-act="prodDel" data-id="${m.id}">Quitar</button><button class="sw ${m.agotado?'':'on'}" role="switch" aria-checked="${!m.agotado}" aria-label="${esc(m.nombre)} disponible" data-act="agotado" data-id="${m.id}"></button></div></div>`).join('')+'</div>':'<div class="empty">Esta categoría no tiene productos todavía.</div>';
+  h+=`<p class="note"><b>Interruptor verde:</b> disponible. Apagado, el producto se ve como agotado y no se puede pedir. <b>Ocultar:</b> deja de aparecer al tomar pedidos, pero se guarda para volver a mostrarlo. <b>Quitar:</b> lo borra de la carta; los pedidos ya hechos no cambian. Quitar y Borrar piden un segundo toque para confirmar.</p>`;
   return h;
 },
 negocio(){
@@ -807,7 +817,7 @@ const chipsHtml=()=>`<div class="chips">${S.cats.map(c=>`<button class="${c.id==
 function prodsHtml(d){
   if(!S.cats.some(c=>c.id===bcat))bcat=(S.cats[0]||{}).id;
   const inCart=pid=>d.items.filter(i=>i.pid===pid).reduce((a,i)=>a+i.cant,0);
-  const lista=S.menu.filter(m=>m.cat===bcat);
+  const lista=S.menu.filter(m=>m.cat===bcat&&!m.oculto);
   return lista.length?lista.map(m=>{const n=inCart(m.id);
     const accion=m.agotado?'<span class="chip off">Agotado</span>':`<button class="add" data-act="prodOpen" data-pid="${m.id}" aria-label="Elegir ${esc(m.nombre)}">+${n?`<span class="cnt">${n}</span>`:''}</button>`;
     return `<div class="prod ${m.agotado?'off':''}" ${m.agotado?'':`data-act="prodOpen" data-pid="${m.id}"`}><div><div class="pn">${esc(m.nombre)}</div>${m.desc?`<div class="pd">${esc(m.desc)}</div>`:''}</div><div class="row"><span class="pp">${money(m.precio)}</span>${accion}</div></div>`}).join(''):'<div class="empty">Esta categoría no tiene productos.</div>';
@@ -1009,7 +1019,7 @@ function sheetProd(id){return()=>{
 function sheetCat(id){return()=>{
   const c=id?S.cats.find(x=>x.id===id):{n:''};
   const usados=id?S.menu.filter(m=>m.cat===id).length:0;
-  paint(head(id?'Categoría':'Nueva categoría',id?esc(c.n):'Agregar a la carta')+`<div class="sh-body"><div class="field"><label for="c-nom">Nombre</label><input id="c-nom" autocomplete="off" value="${esc(c.n)}" placeholder="Ej.: Sándwiches"></div><label class="chk"><input type="checkbox" id="c-azu" ${c.azucar?'checked':''}> Preguntar el azúcar al pedir</label><label class="chk"><input type="checkbox" id="c-tem" ${c.temp?'checked':''}> Preguntar la temperatura al pedir</label><div class="field"><label for="c-ext">Agregados con precio (opcional)</label><input id="c-ext" autocomplete="off" placeholder="Ej.: Huevo 2, Queso 2.50" value="${esc((c.extras||[]).map(x=>x.n+' '+x.p).join(', '))}"><span class="note">Sepárelos con comas y ponga el precio al final de cada uno.</span></div>${id?`<p class="note" style="margin:0">${usados?`Tiene ${usados} producto${usados>1?'s':''}. Para borrarla, primero mueva o quite sus productos.`:'No tiene productos, se puede borrar.'}</p>`:''}<p class="err" id="c-err" hidden></p></div><div class="sh-foot">${id&&!usados?`<button class="btn danger" data-act="catDel" data-id="${id}">Borrar categoría</button>`:''}<button class="btn primary" data-act="catSave" data-id="${id||''}">Guardar</button></div>`);
+  paint(head(id?'Categoría':'Nueva categoría',id?esc(c.n):'Agregar a la carta')+`<div class="sh-body"><div class="field"><label for="c-nom">Nombre</label><input id="c-nom" autocomplete="off" value="${esc(c.n)}" placeholder="Ej.: Sándwiches"></div><label class="chk"><input type="checkbox" id="c-azu" ${c.azucar?'checked':''}> Preguntar el azúcar al pedir</label><label class="chk"><input type="checkbox" id="c-tem" ${c.temp?'checked':''}> Preguntar la temperatura al pedir</label><div class="field"><label for="c-ext">Agregados con precio (opcional)</label><input id="c-ext" autocomplete="off" placeholder="Ej.: Huevo 2, Queso 2.50" value="${esc((c.extras||[]).map(x=>x.n+' '+x.p).join(', '))}"><span class="note">Sepárelos con comas y ponga el precio al final de cada uno.</span></div>${id?`<p class="note" style="margin:0">${usados?`Tiene ${usados} producto${usados>1?'s':''}. Si la borra, también se borran sus productos.`:'No tiene productos.'}</p>`:''}<p class="err" id="c-err" hidden></p></div><div class="sh-foot">${id?`<button class="btn danger" data-act="catDel" data-id="${id}">${usados?`Borrar con sus ${usados} productos`:'Borrar categoría'}</button>`:''}<button class="btn primary" data-act="catSave" data-id="${id||''}">Guardar</button></div>`);
 }}
 function sheetRol(){
   paint(head('Prototipo','¿Quién está usando este aparato?')+`<div class="sh-body"><p class="note" style="margin:0">Elija un rol para ver el sistema como esa persona. Con la base de datos, esto será un inicio de sesión con correo y contraseña.</p><div class="roles">${Object.entries(ROLES).map(([k,r])=>`<button class="rolec ${rol===k?'on':''}" data-act="setRol" data-r="${k}"><b>${r.n}</b><span class="meta">${r.d}</span>${rol===k?'<span class="chip">Estás aquí</span>':''}</button>`).join('')}</div></div>`);
@@ -1229,7 +1239,8 @@ const ACT={
     if(d.id)Object.assign(S.cats.find(c=>c.id===d.id),{n,azucar,temp,extras});else{const id=uid('c');S.cats.push({id,n,azucar,temp,extras});adminCat=id}
     closeSheet();commit(d.id?'Categoría renombrada':'Categoría “'+n+'” creada');
   },
-  catDel:(d,b)=>{if(!armed(b))return;S.cats=S.cats.filter(c=>c.id!==d.id);adminCat='todas';closeSheet();commit('Categoría borrada')},
+  catDel:(d,b)=>{if(!armed(b))return;const n=S.menu.filter(m=>m.cat===d.id).length;S.cats=S.cats.filter(c=>c.id!==d.id);S.menu=S.menu.filter(m=>m.cat!==d.id);adminCat='todas';closeSheet();commit('Categoría borrada'+(n?' con sus '+n+' productos':''))},
+  prodOcultar:d=>{const m=S.menu.find(x=>x.id===d.id);m.oculto=!m.oculto;commit(m.nombre+(m.oculto?' oculto: ya no aparece al tomar pedidos':' visible otra vez'))},
   negUndo:()=>{negDraft=null;render();toast('Cambios descartados')},
   negSave:()=>{
     readNeg();const d=negDraft,mesas=parseInt(d.mesas,10);
