@@ -29,15 +29,16 @@ create table if not exists public.miembros (
 );
 create index if not exists miembros_user_idx on public.miembros(user_id);
 
--- El dueño invita a un trabajador por su correo; al entrar por primera vez queda unido
+-- El Dueño crea un código para cada trabajador; sirve una vez y vence en 7 días
 create table if not exists public.invitaciones (
+  codigo      text primary key default upper(substr(replace(gen_random_uuid()::text,'-',''),1,8)),
   negocio_id  uuid not null references public.negocios(id) on delete cascade,
-  correo      text not null,
   nombre      text not null,
-  rol         text not null check (rol in ('dueno','cajero','mesero','cocina','moto')),
+  rol         text not null check (rol in ('cajero','mesero','cocina','moto')),
   creado      timestamptz not null default now(),
-  primary key (negocio_id, correo)
+  vence       timestamptz not null default now() + interval '7 days'
 );
+create index if not exists invitaciones_negocio_idx on public.invitaciones(negocio_id);
 
 -- Carta: categorías y productos (lo demás de cada uno va en "datos")
 create table if not exists public.categorias (
@@ -138,20 +139,21 @@ begin
   return nuevo;
 end $$;
 
--- El trabajador invitado entra con su correo y queda unido a su negocio
-create or replace function public.aceptar_invitaciones()
-returns int language plpgsql security definer set search_path = '' as $$
-declare correo_actual text := lower(auth.jwt() ->> 'email'); cuantas int;
+-- El trabajador escribe su código y queda unido al negocio con su rol
+create or replace function public.usar_codigo(p_codigo text)
+returns uuid language plpgsql security definer set search_path = '' as $$
+declare inv public.invitaciones%rowtype;
 begin
-  if auth.uid() is null or correo_actual is null then return 0; end if;
+  if auth.uid() is null then raise exception 'Primero inicie sesión'; end if;
+  select * into inv from public.invitaciones
+    where codigo = upper(trim(p_codigo)) and vence > now();
+  if not found then raise exception 'Código no válido o vencido. Pídale uno nuevo al dueño.'; end if;
   insert into public.miembros(negocio_id, user_id, nombre, rol)
-    select i.negocio_id, auth.uid(), i.nombre, i.rol
-    from public.invitaciones i where lower(i.correo) = correo_actual
+    values (inv.negocio_id, auth.uid(), inv.nombre, inv.rol)
     on conflict (negocio_id, user_id) do update set rol = excluded.rol, nombre = excluded.nombre, activo = true
       where public.miembros.rol <> 'dueno';  -- nunca le quita el rol de Dueño a nadie
-  get diagnostics cuantas = row_count;
-  delete from public.invitaciones i where lower(i.correo) = correo_actual;
-  return cuantas;
+  delete from public.invitaciones where codigo = inv.codigo;
+  return inv.negocio_id;
 end $$;
 
 -- ---------- Automatismos ----------
@@ -211,7 +213,7 @@ drop policy if exists miembros_quitar on public.miembros;
 create policy miembros_quitar on public.miembros for delete to authenticated
   using (public.mi_rol(negocio_id) = 'dueno' and user_id <> auth.uid());
 
--- Invitaciones: solo el Dueño
+-- Invitaciones (códigos): solo el Dueño
 drop policy if exists invitaciones_dueno on public.invitaciones;
 create policy invitaciones_dueno on public.invitaciones for all to authenticated
   using (public.mi_rol(negocio_id) = 'dueno') with check (public.mi_rol(negocio_id) = 'dueno');
@@ -253,7 +255,7 @@ revoke all on public.negocios, public.miembros, public.invitaciones, public.cate
   public.productos, public.clientes, public.pedidos, public.mesas_estado
   from anon, authenticated;
 grant select, insert, update, delete on
-  public.miembros, public.invitaciones, public.categorias,
+  public.miembros, public.categorias,
   public.productos, public.clientes, public.mesas_estado
   to authenticated;
 -- El negocio solo se crea con crear_negocio y el contador solo lo cambia la base de datos
@@ -263,12 +265,15 @@ grant update (nombre, ciudad, mesas) on public.negocios to authenticated;
 grant select, delete on public.pedidos to authenticated;
 grant insert (negocio_id, id, tipo, mesa, estado, pagado, anulado, datos, creado) on public.pedidos to authenticated;
 grant update (tipo, mesa, estado, pagado, anulado, datos) on public.pedidos to authenticated;
+-- Invitaciones: el código lo pone la base de datos
+grant select, delete on public.invitaciones to authenticated;
+grant insert (negocio_id, nombre, rol) on public.invitaciones to authenticated;
 
 revoke execute on function public.es_miembro(uuid), public.mi_rol(uuid),
-  public.crear_negocio(text,text,int,text), public.aceptar_invitaciones(),
+  public.crear_negocio(text,text,int,text), public.usar_codigo(text),
   public.numerar_pedido(), public.marcar_actualizado() from public, anon;
 grant execute on function public.es_miembro(uuid), public.mi_rol(uuid),
-  public.crear_negocio(text,text,int,text), public.aceptar_invitaciones() to authenticated;
+  public.crear_negocio(text,text,int,text), public.usar_codigo(text) to authenticated;
 
 -- ---------- Tiempo real: avisar al instante a los otros equipos ----------
 

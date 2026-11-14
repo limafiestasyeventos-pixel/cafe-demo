@@ -14,15 +14,19 @@ es público: no guardes aquí datos reales de clientes ni secretos.
 | Sistema | `index.html` de este repositorio: todo en un archivo (HTML, CSS y JavaScript) |
 | Enlace público | https://limafiestasyeventos-pixel.github.io/cafe-demo/ (GitHub Pages, rama `main`) |
 | Diagrama, PDF y su generador | Repositorio privado `limafiestasyeventos-pixel/cafe-demo-docs`; lee su README |
-| Datos | `localStorage`, clave `cafe-demo-v1`. Cada navegador tiene los suyos |
-| Base de datos (en preparación) | Supabase, plan gratis, región São Paulo. Tablas y seguridad en `supabase/01-tablas.sql` |
+| Datos de la demostración | `localStorage`, clave `cafe-demo-v1`. Cada navegador tiene los suyos |
+| Cuentas, negocios y personal | Supabase, proyecto `cafe-demo`, plan gratis, región Este de EE. UU. (la pantalla nueva no ofreció São Paulo) |
+| Pedidos y carta con cuenta | Todavía en `localStorage`, clave `cafe-real-<negocio_id>`, hasta la etapa 3 |
+| SQL de Supabase | `supabase/01-tablas.sql` (instalación completa) y `02-invitaciones-con-codigo.sql` (cambio ya aplicado o por aplicar en el proyecto del dueño) |
 
 ## Cómo trabajar y publicar
 
 1. Antes de empezar: `git pull`. No editar en dos computadoras a la vez.
-2. Editar `index.html`. Todavía no existe base de datos: no dependas de una.
+2. Editar `index.html`. La demostración no usa la base de datos y debe seguir funcionando sin internet.
 3. Revisar la sintaxis: extraer lo que hay entre `<script>` y `</script>` y correr `node --check`.
-4. Probar en tamaño laptop (1300 × 760) y celular (375 × 812). Usar Dueño para ver todas las pantallas.
+4. Probar en tamaño laptop (1300 × 760) y celular (375 × 812). Usar Dueño para ver todas las pantallas. Para probar
+   el acceso sin crear cuentas en Supabase, usar una copia `_prueba-*.html` con un Supabase simulado y borrarla al terminar.
+   Los cambios de SQL se prueban con PGlite (`@electric-sql/pglite`) antes de dárselos al dueño.
 5. `git add index.html`, commit en español y `git push origin main`. GitHub Pages tarda uno o dos minutos.
 6. Si un cambio afecta el flujo, actualizar el diagrama y el PDF en `cafe-demo-docs`.
 
@@ -38,7 +42,13 @@ Si cambias datos guardados, agrega la conversión en `migrate()`: el dueño tien
 | Cocina | Cocina |
 | Repartidor | Moto |
 
-El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
+**Acceso (etapa 2, hecha):** la página abre en "Entrar". Hay dos caminos:
+- **Ver la demostración:** datos de ejemplo en el aparato; el rol se elige a mano (`cafe-modo=demo` en `localStorage`).
+- **Cuenta:** correo y contraseña de Supabase. Sin negocio, la persona crea el suyo (queda como Dueño, `crear_negocio`)
+  o escribe un código de invitación (`usar_codigo`). El rol lo pone el dueño en Admin → Personal; no se elige a mano.
+- Invitaciones por **código** de 8 caracteres (un uso, vence en 7 días) que el dueño envía por WhatsApp. No se usa correo:
+  el correo gratis de Supabase solo llega al equipo del proyecto (2 por hora). Por eso "Confirm email" va **apagado**.
+- La clave `sb_publishable_…` está en `index.html` a propósito (es pública). La secreta nunca.
 
 ## Decisiones del dueño (respetarlas)
 
@@ -100,12 +110,14 @@ El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
 1. **Conectar la base de datos (el siguiente paso grande).** Hoy los equipos no comparten pedidos. Plan: Supabase con
    `negocio_id` y seguridad por fila, tiempo real e inicio de sesión. Antes de usar datos reales de clientes hay que
    agregar inicio de sesión: hoy cualquiera con el enlace abre el sistema y elige un rol.
-   - Etapas: 1) cuenta y tablas, 2) inicio de sesión y roles, 3) pantallas conectadas en tiempo real, 4) pasar la carta,
-     5) prueba con varios equipos.
-   - `supabase/01-tablas.sql`: negocios, miembros (roles `dueno`, `cajero`, `mesero`, `cocina`, `moto`), invitaciones por
-     correo, categorías, productos, clientes, pedidos (detalle en `datos` jsonb; el número `n` lo pone la base de datos) y
+   - Etapas: 1) cuenta y tablas (hecha), 2) inicio de sesión y roles (hecha), 3) pantallas conectadas en tiempo real,
+     4) pasar la carta, 5) prueba con varios equipos.
+   - Pendiente conocido: cualquiera con el enlace puede crear una cuenta y su propio negocio (queda aislado). Cuando se
+     venda, limitar quién crea negocios. Sin correo, el trabajador que olvida su contraseña necesita cuenta y código nuevos.
+   - `supabase/01-tablas.sql`: negocios, miembros (roles `dueno`, `cajero`, `mesero`, `cocina`, `moto`), invitaciones con
+     código, categorías, productos, clientes, pedidos (detalle en `datos` jsonb; el número `n` lo pone la base de datos) y
      `mesas_estado` (cuenta, reserva, `unida_a`). Seguridad por fila con `es_miembro()` y `mi_rol()`; funciones
-     `crear_negocio()` y `aceptar_invitaciones()`. Se probó con PGlite; se puede volver a correr.
+     `crear_negocio()` y `usar_codigo()`. Se probó con PGlite; se puede volver a correr.
    - Solo la clave pública (publishable) va en la página. La secreta nunca se pide ni se escribe.
 2. Confirmar con el dueño que PH significa papa hilo (lo dijo por voz como "papa lilo").
 3. Posibles mejoras, solo si él las pide: extras con cantidad y "Carne clásica", cambiar papas y cremas desde Admin,
@@ -123,3 +135,5 @@ El rol se elige a mano en "Entraste como". No hay inicio de sesión todavía.
 - `ARMADO_BURGER`, `DEF_CATS`, `DEF_MENU`: opciones de burgers, categorías y carta.
 - `ticketsLista`, `marcarEdicion`, `guardarEdicion`, `editable`: pantalla Tickets y edición.
 - `mapQuery`, `mapLink`, `dirTxt`: Google Maps.
+- `SB_URL`, `SB_KEY`, `MODO`, `YO`: conexión y cuenta. `arrancar`, `acceso`, `entrarReal`: pantalla de acceso.
+- `personalReal`, `cargarEquipo`, `invCrear`, `mAct`: personal y códigos en Admin (modo con cuenta).

@@ -54,7 +54,7 @@ main.wrap{padding-block:18px 120px}
 .vhead p{margin:4px 0 0;color:var(--muted);max-width:60ch}
 h2.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:26px 0 10px}
 
-.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:var(--ink);min-height:44px}
+.btn{box-sizing:border-box;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:11px 16px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:var(--ink);min-height:44px}
 .btn.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
 .btn.ok{background:var(--ok);border-color:var(--ok);color:var(--surface)}
 .btn.ghost{background:transparent}
@@ -360,12 +360,21 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
   .mesas{grid-template-columns:repeat(3,minmax(0,1fr))}
   .toast{bottom:24px}
 }
+.acceso{position:fixed;inset:0;z-index:29;background:var(--bg);overflow:auto;padding:max(24px,7vh) 16px 40px}
+.acceso .box{max-width:420px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.acceso h1{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1.05;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.acceso .lead{margin:0;color:var(--muted)}
+.acceso form{display:flex;flex-direction:column;gap:12px}
+.acceso .sep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}
+.acceso .sep::before,.acceso .sep::after{content:"";flex:1;height:1px;background:var(--line)}
+.link{background:none;border:0;color:var(--brand);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;padding:8px 0;min-height:44px;cursor:pointer;text-align:left}
+.codigo{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:26px;font-weight:700;letter-spacing:.12em;overflow-wrap:anywhere}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-weight:500;max-width:calc(100% - 32px);box-shadow:0 8px 24px var(--shade)}
 @media (prefers-reduced-motion:no-preference){.panel{animation:up .22s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
 
 <header class="top"><div class="wrap">
-  <div class="top-l"><span class="brand" id="brand">Café Demo</span><span class="demo">Prototipo · datos de ejemplo</span></div>
+  <div class="top-l"><span class="brand" id="brand">Café Demo</span><span class="demo" id="modo-txt">Demostración · datos de ejemplo</span></div>
   <button class="rol-btn" data-act="rolSheet"><small>Entraste como</small><b id="rol-n">Dueño</b></button>
 </div></header>
 
@@ -376,7 +385,9 @@ nav.nav .badge{position:absolute;top:4px;left:calc(50% + 6px);min-width:18px;hei
 <div class="scrim" id="sheet" hidden><div class="panel" id="panel" role="dialog" aria-modal="true"></div></div>
 <div class="scrim" id="pop" hidden><div class="pop-box" id="pop-box" role="dialog" aria-modal="true" aria-label="Opciones del producto"></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="acceso" id="acceso" hidden></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
 <script>
 // ---------- Carta inicial (tomada de las fotos) ----------
 const ARMADO_BURGER={
@@ -491,7 +502,7 @@ const NAV={
   admin:['Admin','<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>']};
 
 // ---------- Datos guardados en este aparato ----------
-const KEY='cafe-demo-v1';
+let KEY='cafe-demo-v1';
 let S;
 const clone=o=>JSON.parse(JSON.stringify(o));
 function blank(keep){return {seq:0,pedidos:[],clientes:{},cuenta:{},reservas:{},anulados:[],uniones:{},menu:keep?keep.menu:clone(DEF_MENU),cats:keep?keep.cats:clone(DEF_CATS),config:keep?keep.config:clone(DEF_CONFIG),personal:keep?keep.personal:clone(DEF_PERSONAL)}}
@@ -541,6 +552,13 @@ save();
 let rol='dueno';
 try{rol=sessionStorage.getItem('cafe-demo-rol')||'dueno'}catch(e){}
 if(!ROLES[rol])rol='dueno';
+
+// ---------- Cuenta y base de datos (Supabase) ----------
+// La clave "publishable" es pública a propósito: los datos los protegen las reglas de seguridad
+// de la base de datos (supabase/01-tablas.sql). La clave secreta nunca va en esta página.
+const SB_URL='https://xqkofppnggzpjuzxudsx.supabase.co',SB_KEY='sb_publishable_k-Q0aNdjyC85VvnIU-TD5A_Jr4NY-hZ';
+let sb=null,MODO='demo',YO=null,cuentaNombre='',equipo=null,codigos=null,ultimoCodigo=null;
+const ROL_INV=['cajero','mesero','cocina','moto'];
 
 // ---------- Ayudantes ----------
 const $=s=>document.querySelector(s);
@@ -743,20 +761,147 @@ negocio(){
   const d=negDraft;
   let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div><div class="field"><label for="n-ciu">Ciudad del negocio</label><input id="n-ciu" autocomplete="off" placeholder="Ej.: Lima, Chiclayo, Arequipa" value="${esc(d.ciudad)}"><span class="note">Aparece ya escrita en Distrito o ciudad de cada delivery nuevo, y se puede cambiar en el pedido.</span></div></div>`;
   h+=`<p class="err" id="n-err" hidden></p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="negSave">Guardar cambios</button><button class="btn ghost" data-act="negUndo">Descartar</button></div>`;
-  h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
+  if(MODO==='real')h+=`<h2 class="sec">Pedidos en este aparato</h2><div class="card"><p class="note" style="margin:0">Por ahora los pedidos y la carta se guardan solo en este aparato. En la siguiente etapa se compartirán entre todos los equipos del negocio, al instante.</p><div class="row"><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
+  else h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
   return h;
 },
 personal(){
+  if(MODO==='real')return personalReal();
   let h=`<h2 class="sec" style="margin-top:0">Probar como otra persona</h2><p class="note" style="margin:0 0 10px">Cada rol ve solo sus pantallas. Abra una pestaña como Mesero y otra como Cocina para ver cómo se pasan los pedidos.</p><div class="roles">`+Object.entries(ROLES).map(([k,r])=>`<button class="rolec ${rol===k?'on':''}" data-act="setRol" data-r="${k}"><b>${r.n}</b><span class="meta">${r.d}</span><span class="note">Ve: ${r.v.map(v=>NAV[v][0]).join(', ')}</span>${rol===k?'<span class="chip">Estás aquí</span>':''}</button>`).join('')+'</div>';
   h+=`<h2 class="sec">Personal del local</h2><div class="list">`+S.personal.map(u=>`<div class="prow"><div><div class="an" style="${u.activo?'':'color:var(--muted);text-decoration:line-through'}">${esc(u.nombre)}</div><select data-urol="${u.id}" aria-label="Rol de ${esc(u.nombre)}">${Object.entries(ROLES).filter(([k])=>k!=='dueno').map(([k,r])=>`<option value="${k}" ${u.rol===k?'selected':''}>${r.n}</option>`).join('')}</select></div><div class="aside"><span class="note">${u.activo?'Activo':'Sin acceso'}</span><button class="sw ${u.activo?'on':''}" role="switch" aria-checked="${u.activo}" aria-label="${esc(u.nombre)} activo" data-act="uAct" data-id="${u.id}"></button></div></div>`).join('')+'</div>';
   h+=`<div class="card" style="margin-top:12px"><b>Agregar a alguien</b><div class="addp"><div class="field"><label for="u-nom">Nombre</label><input id="u-nom" autocomplete="off"></div><div class="field"><label for="u-rol">Rol</label><select id="u-rol">${Object.entries(ROLES).filter(([k])=>k!=='dueno').map(([k,r])=>`<option value="${k}">${r.n}</option>`).join('')}</select></div><button class="btn primary" data-act="uAdd">Agregar</button></div><p class="note" style="margin:0">Con la base de datos, cada persona tendrá su propio correo y contraseña. Apagar el interruptor le quita el acceso sin borrar su historial.</p></div>`;
   return h;
 }};
 
+function personalReal(){
+  if(equipo===null){cargarEquipo();return '<div class="empty">Cargando el personal…</div>'}
+  if(equipo==='error')return '<div class="empty">No se pudo cargar el personal.<div class="row" style="justify-content:center;margin-top:10px"><button class="btn small" data-act="recargarEquipo">Volver a probar</button></div></div>';
+  let h='<h2 class="sec" style="margin-top:0">Personal con cuenta</h2><div class="list">'+equipo.map(u=>{
+    const fijo=u.rol==='dueno'||u.user_id===YO.uid;
+    return `<div class="prow"><div><div class="an" style="${u.activo?'':'color:var(--muted);text-decoration:line-through'}">${esc(u.nombre)}${u.user_id===YO.uid?' (usted)':''}</div>${fijo?`<span class="note">${ROLES[u.rol]?ROLES[u.rol].n:esc(u.rol)}</span>`:`<select data-mrol="${u.user_id}" aria-label="Rol de ${esc(u.nombre)}">${ROL_INV.map(k=>`<option value="${k}" ${u.rol===k?'selected':''}>${ROLES[k].n}</option>`).join('')}</select>`}</div><div class="aside">${fijo?'':`<span class="note">${u.activo?'Activo':'Sin acceso'}</span><button class="sw ${u.activo?'on':''}" role="switch" aria-checked="${u.activo}" aria-label="${esc(u.nombre)} activo" data-act="mAct" data-id="${u.user_id}"></button>`}</div></div>`;
+  }).join('')+'</div>';
+  if(ultimoCodigo)h+=`<div class="card" style="margin-top:12px;border-color:var(--brand)"><b>Código para ${esc(ultimoCodigo.nombre)} (${ROLES[ultimoCodigo.rol].n})</b><div class="codigo">${esc(ultimoCodigo.codigo)}</div><p class="note" style="margin:0">Envíeselo por WhatsApp. Sirve una sola vez y vence en 7 días.</p><div class="row"><a class="btn primary" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(mensajeCodigo(ultimoCodigo))}">Enviar por WhatsApp</a></div></div>`;
+  h+=`<div class="card" style="margin-top:12px"><b>Invitar a alguien</b><div class="addp"><div class="field"><label for="i-nom">Nombre</label><input id="i-nom" autocomplete="off"></div><div class="field"><label for="i-rol">Rol</label><select id="i-rol">${ROL_INV.map(k=>`<option value="${k}">${ROLES[k].n}</option>`).join('')}</select></div><button class="btn primary" data-act="invCrear">Crear código</button></div><p class="err" id="i-err" hidden></p><p class="note" style="margin:0">La persona abre el sistema, toca <b>Es mi primera vez: crear una cuenta</b> con su propio correo y contraseña, y escribe el código. Apagar el interruptor le quita el acceso sin borrar su historial.</p></div>`;
+  if(codigos&&codigos.length)h+='<h2 class="sec">Códigos sin usar</h2><div class="list">'+codigos.map(c=>`<div class="prow"><div><div class="an">${esc(c.nombre)} · ${ROLES[c.rol].n}</div><span class="note"><b class="codigo" style="font-size:15px">${esc(c.codigo)}</b> · vence el ${new Date(c.vence).toLocaleDateString('es-PE')}</span></div><div class="aside"><button class="btn small danger" data-act="invBorrar" data-c="${esc(c.codigo)}">Anular</button></div></div>`).join('')+'</div>';
+  return h;
+}
+const mensajeCodigo=c=>`Hola ${c.nombre}, te invito al sistema de pedidos de ${S.config.nombre}.\n1. Abre ${location.origin+location.pathname}\n2. Toca "Es mi primera vez: crear una cuenta"\n3. Cuando te lo pida, escribe este código: ${c.codigo}\nEl código vence en 7 días.`;
+async function cargarEquipo(){
+  if(cargarEquipo.va)return;cargarEquipo.va=true;
+  try{
+    const [a,b]=await Promise.all([
+      sb.from('miembros').select('user_id,nombre,rol,activo').eq('negocio_id',YO.negocioId).order('creado'),
+      sb.from('invitaciones').select('codigo,nombre,rol,vence').eq('negocio_id',YO.negocioId).gt('vence',new Date().toISOString()).order('creado')]);
+    if(a.error)throw a.error;if(b.error)throw b.error;
+    equipo=a.data;codigos=b.data;
+  }catch(e){equipo='error';toast(errTxt(e))}
+  cargarEquipo.va=false;
+  if(view==='admin'&&adminTab==='personal')render();
+}
+
+// ---------- Pantalla de acceso ----------
+const lsGet=k=>{try{return localStorage.getItem(k)}catch(e){return null}};
+const lsSet=(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}};
+function errTxt(e){
+  const m=String((e&&e.message)||e||'');
+  if(/Invalid login credentials/i.test(m))return 'Correo o contraseña incorrectos.';
+  if(/already (been )?registered|already exists/i.test(m))return 'Ese correo ya tiene una cuenta. Toque "Ya tengo cuenta: entrar".';
+  if(/Password should|weak password/i.test(m))return 'La contraseña es muy débil. Use al menos 8 caracteres, con letras y números.';
+  if(/Email not confirmed/i.test(m))return 'Falta confirmar el correo. Avísele al dueño del sistema.';
+  if(/valid email|invalid format|validate email/i.test(m))return 'Revise el correo: parece que está mal escrito.';
+  if(/rate limit|too many/i.test(m))return 'Demasiados intentos seguidos. Espere unos minutos y vuelva a probar.';
+  if(/Failed to fetch|NetworkError|Load failed|network/i.test(m))return 'No hay conexión a internet. Revise el wifi o los datos y vuelva a probar.';
+  return m||'Algo salió mal. Vuelva a probar.';
+}
+function cliente(){
+  if(!sb&&window.supabase){
+    sb=window.supabase.createClient(SB_URL,SB_KEY);
+    sb.auth.onAuthStateChange(ev=>{if(ev==='SIGNED_OUT'&&MODO==='real')location.reload()});
+  }
+  return sb;
+}
+function acceso(paso,msg){
+  const el=$('#acceso');el.hidden=false;document.documentElement.style.overflow='hidden';
+  const demo='<div class="sep">o</div><button class="btn" type="button" data-act="verDemo">Ver la demostración</button><p class="note" style="margin:0">La demostración usa datos de ejemplo y se guarda solo en este aparato.</p>';
+  const e=`<p class="err" id="a-err" ${msg?'':'hidden'}>${esc(msg||'')}</p>`;
+  const correo='<div class="field"><label for="a-cor">Correo</label><input id="a-cor" type="email" autocomplete="email" inputmode="email" autocapitalize="off" required></div>';
+  let h='';
+  if(paso==='cargando')h='<h1>Un momento…</h1><p class="lead">Revisando su cuenta.</p>';
+  else if(paso==='entrar')h=`<h1>Entrar</h1><p class="lead">Use el correo y la contraseña de su cuenta.</p><form data-form="entrar">${correo}<div class="field"><label for="a-pas">Contraseña</label><input id="a-pas" type="password" autocomplete="current-password" required></div>${e}<button class="btn primary" type="submit">Entrar</button></form><button class="link" type="button" data-act="accesoPaso" data-p="crear">Es mi primera vez: crear una cuenta</button>${demo}`;
+  else if(paso==='crear')h=`<h1>Crear una cuenta</h1><p class="lead">Una cuenta por persona. Después podrá crear su negocio o unirse al de su trabajo con un código.</p><form data-form="crear"><div class="field"><label for="a-nom">Su nombre</label><input id="a-nom" autocomplete="name" required></div>${correo}<div class="field"><label for="a-pas">Contraseña</label><input id="a-pas" type="password" autocomplete="new-password" minlength="8" required><span class="note">Al menos 8 caracteres. Guárdela: la necesitará para entrar.</span></div>${e}<button class="btn primary" type="submit">Crear cuenta</button></form><button class="link" type="button" data-act="accesoPaso" data-p="entrar">Ya tengo cuenta: entrar</button>${demo}`;
+  else if(paso==='negocio')h=`<h1>Hola${cuentaNombre?', '+esc(cuentaNombre):''}</h1><p class="lead">Su cuenta todavía no está en ningún negocio. Si el dueño le quitó el acceso, pídale un código nuevo.</p><div class="card"><b>¿Trabaja en un negocio?</b><p class="note" style="margin:0">Escriba el código de 8 letras y números que le envió el dueño.</p><form data-form="codigo"><div class="field"><label for="a-cod">Código</label><input id="a-cod" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" required placeholder="Ej.: 4F7A2C9B"></div><button class="btn primary" type="submit">Unirme</button></form></div><div class="card"><b>¿Es dueño?</b><p class="note" style="margin:0">Cree su negocio. Usted quedará como Dueño y podrá invitar a su personal.</p><form data-form="negocio"><div class="field"><label for="a-neg">Nombre del negocio</label><input id="a-neg" autocomplete="organization" required></div><div class="two"><div class="field"><label for="a-ciu">Ciudad</label><input id="a-ciu" value="Lima" required></div><div class="field"><label for="a-mes">Mesas</label><input id="a-mes" type="number" min="1" max="30" value="5" inputmode="numeric" required></div></div><button class="btn primary" type="submit">Crear mi negocio</button></form></div>${e}<button class="link" type="button" data-act="cerrarSesion">Cerrar sesión</button>`;
+  else h=`<h1>No se pudo conectar</h1>${e}<button class="btn primary" type="button" data-act="reintentar">Volver a probar</button>${demo}`;
+  el.innerHTML=`<div class="box"><div class="eyebrow">${paso==='negocio'?'Su cuenta':'Sistema de pedidos'}</div>${h}</div>`;
+  el.scrollTop=0;
+  // En el celular no se enfoca solo: el teclado taparía la pantalla
+  const f=el.querySelector('input');if(f&&!matchMedia('(pointer:coarse)').matches)f.focus();
+}
+function ocultarAcceso(){const el=$('#acceso');el.hidden=true;el.innerHTML='';document.documentElement.style.overflow=''}
+async function arrancar(){
+  if(lsGet('cafe-modo')==='demo'){MODO='demo';render();return}
+  if(!cliente())return acceso('error','No se pudo cargar la conexión. Revise el internet y vuelva a probar.');
+  acceso('cargando');
+  try{
+    const {data,error}=await sb.auth.getSession();if(error)throw error;
+    if(data.session)await entrarReal(data.session.user);else acceso('entrar');
+  }catch(e){acceso('error',errTxt(e))}
+}
+async function entrarReal(user){
+  cuentaNombre=(user.user_metadata&&user.user_metadata.nombre)||'';
+  const {data,error}=await sb.from('miembros').select('rol,nombre,negocio_id,negocios(nombre,ciudad,mesas)').eq('user_id',user.id).eq('activo',true);
+  if(error)throw error;
+  if(!data.length){YO=null;return acceso('negocio')}
+  const m=data.find(x=>x.negocio_id===lsGet('cafe-negocio'))||data[0];
+  lsSet('cafe-negocio',m.negocio_id);
+  YO={uid:user.id,email:user.email,nombre:m.nombre,rol:m.rol,negocioId:m.negocio_id,negocios:data};
+  MODO='real';KEY='cafe-real-'+m.negocio_id;
+  S=load()||blank();
+  S.config={nombre:m.negocios.nombre,ciudad:m.negocios.ciudad,mesas:m.negocios.mesas};
+  rol=ROLES[m.rol]?m.rol:'mesero';
+  equipo=null;codigos=null;ultimoCodigo=null;negDraft=null;closeSheet();
+  save();ocultarAcceso();
+  view=vistas().includes(location.hash.slice(1))?location.hash.slice(1):vistas()[0];
+  render();window.scrollTo(0,0);
+}
+document.addEventListener('submit',async e=>{
+  const f=e.target.closest('[data-form]');if(!f)return;
+  e.preventDefault();
+  const btn=f.querySelector('[type=submit]');if(btn.disabled)return;
+  const v=id=>(($(id)||{}).value||'').trim();
+  const txt=btn.textContent;
+  const fallo=m=>{const el=$('#a-err');if(el){el.textContent=m;el.hidden=false}btn.disabled=false;btn.textContent=txt};
+  btn.disabled=true;btn.textContent='Un momento…';$('#a-err').hidden=true;
+  try{
+    const k=f.dataset.form;
+    if(k==='entrar'){
+      const {data,error}=await sb.auth.signInWithPassword({email:v('#a-cor'),password:$('#a-pas').value});if(error)throw error;
+      await entrarReal(data.user);
+    } else if(k==='crear'){
+      const pas=$('#a-pas').value;
+      if(pas.length<8)return fallo('La contraseña debe tener al menos 8 caracteres.');
+      const {data,error}=await sb.auth.signUp({email:v('#a-cor'),password:pas,options:{data:{nombre:v('#a-nom')}}});if(error)throw error;
+      if(!data.session)return fallo('La cuenta se creó, pero Supabase pide confirmar el correo. El dueño del sistema debe apagar "Confirm email" en Supabase.');
+      await entrarReal(data.user);
+    } else if(k==='codigo'){
+      const {error}=await sb.rpc('usar_codigo',{p_codigo:v('#a-cod')});if(error)throw error;
+      const {data,error:e2}=await sb.auth.getUser();if(e2)throw e2;
+      await entrarReal(data.user);toast('Listo: ya está en el negocio');
+    } else if(k==='negocio'){
+      const mesas=parseInt(v('#a-mes'),10);
+      if(!(mesas>=1&&mesas<=30))return fallo('Las mesas deben ser entre 1 y 30.');
+      const {error}=await sb.rpc('crear_negocio',{p_nombre:v('#a-neg'),p_ciudad:v('#a-ciu'),p_mesas:mesas,p_mi_nombre:cuentaNombre||'Dueño'});if(error)throw error;
+      const {data,error:e2}=await sb.auth.getUser();if(e2)throw e2;
+      await entrarReal(data.user);toast('Negocio creado. Usted es el Dueño.');
+    }
+  }catch(er){fallo(errTxt(er))}
+});
+
 function render(){
   if(!vistas().includes(view))view=vistas()[0];
   $('#brand').textContent=negocio();
   $('#rol-n').textContent=ROLES[rol].n;
+  $('#modo-txt').textContent=MODO==='real'?'Conectado · '+YO.nombre:'Demostración · datos de ejemplo';
+  $('.rol-btn small').textContent=MODO==='real'?'Su cuenta':'Entraste como';
   let ml=0;for(let n=1;n<=S.config.mesas;n++)if(mesaInfo(n).st==='listo')ml++;
   const badge={mesas:ml+[...llevarActivos(),...recogerActivos()].filter(p=>p.estado==='listo').length,delivery:deliveryActivos().length,cocina:enCocina().length,moto:S.pedidos.filter(p=>p.tipo==='delivery'&&(p.estado==='listo'||p.estado==='en_camino')).length,caja:0,admin:S.menu.filter(m=>m.agotado).length};
   const vs=vistas(),nav=$('#nav');
@@ -1047,7 +1192,12 @@ function sheetCat(id){return()=>{
   paint(head(id?'Categoría':'Nueva categoría',id?esc(c.n):'Agregar a la carta')+`<div class="sh-body"><div class="field"><label for="c-nom">Nombre</label><input id="c-nom" autocomplete="off" value="${esc(c.n)}" placeholder="Ej.: Sándwiches"></div><label class="chk"><input type="checkbox" id="c-azu" ${c.azucar?'checked':''}> Preguntar el azúcar al pedir</label><label class="chk"><input type="checkbox" id="c-tem" ${c.temp?'checked':''}> Preguntar la temperatura al pedir</label><label class="chk"><input type="checkbox" id="c-ocu" ${c.oculto?'checked':''}> Ocultar esta categoría al tomar pedidos</label><div class="field"><label for="c-ext">Agregados con precio (opcional)</label><input id="c-ext" autocomplete="off" placeholder="Ej.: Huevo 2, Queso 2.50" value="${esc((c.extras||[]).map(x=>x.n+' '+x.p).join(', '))}"><span class="note">Sepárelos con comas y ponga el precio al final de cada uno.</span></div>${id?`<p class="note" style="margin:0">${usados?`Tiene ${usados} producto${usados>1?'s':''}. Si la borra, también se borran sus productos.`:'No tiene productos.'}</p>`:''}<p class="err" id="c-err" hidden></p></div><div class="sh-foot">${id?`<button class="btn danger" data-act="catDel" data-id="${id}">${usados?`Borrar con sus ${usados} productos`:'Borrar categoría'}</button>`:''}<button class="btn primary" data-act="catSave" data-id="${id||''}">Guardar</button></div>`);
 }}
 function sheetRol(){
-  paint(head('Prototipo','¿Quién está usando este aparato?')+`<div class="sh-body"><p class="note" style="margin:0">Elija un rol para ver el sistema como esa persona. Con la base de datos, esto será un inicio de sesión con correo y contraseña.</p><div class="roles">${Object.entries(ROLES).map(([k,r])=>`<button class="rolec ${rol===k?'on':''}" data-act="setRol" data-r="${k}"><b>${r.n}</b><span class="meta">${r.d}</span>${rol===k?'<span class="chip">Estás aquí</span>':''}</button>`).join('')}</div></div>`);
+  if(MODO==='real'){
+    const otros=YO.negocios.length>1?'<h2 class="sec">Cambiar de negocio</h2><div class="list">'+YO.negocios.map(m=>`<button class="btn" data-act="cambiarNeg" data-id="${m.negocio_id}" ${m.negocio_id===YO.negocioId?'disabled':''}>${esc(m.negocios.nombre)} · ${ROLES[m.rol]?ROLES[m.rol].n:esc(m.rol)}</button>`).join('')+'</div>':'';
+    paint(head('Su cuenta',esc(YO.nombre))+`<div class="sh-body"><div class="card"><div><b>${esc(YO.nombre)}</b> · ${ROLES[rol].n}</div><div class="note">${esc(YO.email)}</div><div class="note">Negocio: ${esc(S.config.nombre)}</div></div>${otros}<p class="note" style="margin:0">Su rol lo elige el dueño del negocio. Si comparte este aparato, cierre sesión al terminar su turno.</p></div><div class="sh-foot"><button class="btn danger" data-act="cerrarSesion">Cerrar sesión</button></div>`);
+    return;
+  }
+  paint(head('Prototipo','¿Quién está usando este aparato?')+`<div class="sh-body"><p class="note" style="margin:0">Elija un rol para ver el sistema como esa persona. Esto es solo para la demostración: con una cuenta, cada persona entra con su correo y su rol lo elige el dueño.</p><div class="roles">${Object.entries(ROLES).map(([k,r])=>`<button class="rolec ${rol===k?'on':''}" data-act="setRol" data-r="${k}"><b>${r.n}</b><span class="meta">${r.d}</span>${rol===k?'<span class="chip">Estás aquí</span>':''}</button>`).join('')}</div></div><div class="sh-foot"><button class="btn primary" data-act="irLogin">Entrar con mi cuenta</button></div>`);
 }
 
 // ---------- Acciones ----------
@@ -1070,6 +1220,35 @@ const ACT={
   nav:d=>{view=d.v;closeSheet();render();window.scrollTo(0,0)},
   close:()=>closeSheet(),
   rolSheet:()=>openSheet(sheetRol),
+  verDemo:()=>{lsSet('cafe-modo','demo');location.reload()},
+  irLogin:()=>{lsSet('cafe-modo',null);location.reload()},
+  accesoPaso:d=>acceso(d.p),
+  reintentar:()=>arrancar(),
+  cerrarSesion:async()=>{try{await cliente().auth.signOut({scope:'local'})}catch(e){}lsSet('cafe-negocio',null);location.reload()},
+  cambiarNeg:d=>{lsSet('cafe-negocio',d.id);location.reload()},
+  recargarEquipo:()=>{equipo=null;render()},
+  invCrear:async(d,b)=>{
+    const nombre=$('#i-nom').value.trim(),r=$('#i-rol').value;
+    if(!nombre){$('#i-nom').focus();return}
+    b.disabled=true;
+    const {data,error}=await sb.from('invitaciones').insert({negocio_id:YO.negocioId,nombre,rol:r}).select('codigo,nombre,rol,vence').single();
+    b.disabled=false;
+    if(error)return err('#i-err',errTxt(error));
+    ultimoCodigo=data;codigos=[...(codigos||[]),data];render();toast('Código creado para '+nombre);
+  },
+  invBorrar:async(d,b)=>{
+    if(!armed(b))return;
+    const {error}=await sb.from('invitaciones').delete().eq('codigo',d.c);
+    if(error)return toast(errTxt(error));
+    codigos=codigos.filter(c=>c.codigo!==d.c);if(ultimoCodigo&&ultimoCodigo.codigo===d.c)ultimoCodigo=null;
+    render();toast('Código anulado');
+  },
+  mAct:async d=>{
+    const u=equipo.find(x=>x.user_id===d.id);
+    const {data,error}=await sb.from('miembros').update({activo:!u.activo}).eq('negocio_id',YO.negocioId).eq('user_id',u.user_id).select('activo');
+    if(error||!data.length)return toast(error?errTxt(error):'No se pudo cambiar.');
+    u.activo=data[0].activo;render();toast(u.nombre+(u.activo?' tiene acceso otra vez':' ya no tiene acceso'));
+  },
   setRol:d=>{rol=d.r;try{sessionStorage.setItem('cafe-demo-rol',rol)}catch(e){}view=vistas()[0];closeSheet();render();window.scrollTo(0,0);toast('Ahora estás como '+ROLES[rol].n)},
   mesa:d=>openSheet(sheetMesa(+d.n)),
   llevar:()=>openSheet(sheetLlevar),
@@ -1286,7 +1465,15 @@ const ACT={
     if(ocupada)return err('#n-err',`La mesa ${ocupada.mesa} tiene una cuenta abierta. Cóbrela antes de reducir las mesas.`);
     const sep=Object.keys(S.reservas).find(n=>+n>mesas);
     if(sep)return err('#n-err',`La mesa ${sep} está separada. Quite la separación antes de reducir las mesas.`);
-    S.config={nombre:d.nombre.trim(),mesas,ciudad:String(d.ciudad||'').trim()};negDraft=null;commit('Cambios guardados');
+    const nuevo={nombre:d.nombre.trim(),mesas,ciudad:String(d.ciudad||'').trim()};
+    if(MODO==='real'){
+      sb.from('negocios').update(nuevo).eq('id',YO.negocioId).select('id').then(({data,error})=>{
+        if(error||!data.length)return err('#n-err',error?errTxt(error):'No se pudo guardar. Solo el Dueño puede cambiar estos datos.');
+        S.config=nuevo;negDraft=null;commit('Cambios guardados para todo el negocio');
+      });
+      return;
+    }
+    S.config=nuevo;negDraft=null;commit('Cambios guardados');
   },
   uAct:d=>{const u=S.personal.find(x=>x.id===d.id);u.activo=!u.activo;commit(u.nombre+(u.activo?' tiene acceso otra vez':' ya no tiene acceso'))},
   uAdd:()=>{const n=$('#u-nom').value.trim();if(!n){$('#u-nom').focus();return}S.personal.push({id:uid('u'),nombre:n,rol:$('#u-rol').value,activo:true});commit(n+' agregado al personal')}
@@ -1320,6 +1507,13 @@ document.addEventListener('input',e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='l-met'&&draft){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=e.target.value;paint.keep=true;redraw()}
+  if(e.target.dataset.mrol){
+    const s=e.target,u=equipo.find(x=>x.user_id===s.dataset.mrol);
+    sb.from('miembros').update({rol:s.value}).eq('negocio_id',YO.negocioId).eq('user_id',u.user_id).select('rol').then(({data,error})=>{
+      if(error||!data.length){toast(error?errTxt(error):'No se pudo cambiar el rol.');render();return}
+      u.rol=data[0].rol;toast(u.nombre+' ahora es '+ROLES[u.rol].n);
+    });
+  }
   if(e.target.dataset.urol){const u=S.personal.find(x=>x.id===e.target.dataset.urol);u.rol=e.target.value;commit(u.nombre+' ahora es '+ROLES[u.rol].n)}
 });
 document.addEventListener('keydown',e=>{
@@ -1327,7 +1521,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&sheetFn&&sheetFn!==sheetWiz)closeSheet();
 });
 // Otra pestaña guardó algo: actualizar sin borrar lo que se está escribiendo
-window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load()||seed();if(view==='admin'||sheetFn===sheetBuilder||sheetFn===sheetWiz||(sheetFn&&$('#panel input')))return;render()});
+window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load()||(MODO==='real'?blank(S):seed());if(view==='admin'||sheetFn===sheetBuilder||sheetFn===sheetWiz||(sheetFn&&$('#panel input')))return;render()});
 setInterval(()=>{if(!sheetFn&&['mesas','delivery','cocina','moto'].includes(view))render()},20000);
-render();
+arrancar();
 </script>
