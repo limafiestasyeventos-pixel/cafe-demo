@@ -44,6 +44,7 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;g
 .top-l{display:flex;flex-direction:column;min-width:0}
 .brand{font-family:var(--f-display);font-weight:800;font-size:22px;line-height:1.1;letter-spacing:-.02em;color:var(--brand);overflow-wrap:anywhere}
 .demo{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.demo.off{color:var(--bad);font-weight:600}
 .rol-btn{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .rol-btn small{font-size:10.5px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 .rol-btn b{font-weight:600;color:var(--brand)}
@@ -761,7 +762,7 @@ negocio(){
   const d=negDraft;
   let h=`<div class="card"><div class="two"><div class="field"><label for="n-nom">Nombre del negocio</label><input id="n-nom" value="${esc(d.nombre)}" autocomplete="off"></div><div class="field"><label for="n-mesas">Cantidad de mesas</label><input id="n-mesas" type="number" min="1" max="30" inputmode="numeric" value="${d.mesas}"></div></div><div class="field"><label for="n-ciu">Ciudad del negocio</label><input id="n-ciu" autocomplete="off" placeholder="Ej.: Lima, Chiclayo, Arequipa" value="${esc(d.ciudad)}"><span class="note">Aparece ya escrita en Distrito o ciudad de cada delivery nuevo, y se puede cambiar en el pedido.</span></div></div>`;
   h+=`<p class="err" id="n-err" hidden></p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="negSave">Guardar cambios</button><button class="btn ghost" data-act="negUndo">Descartar</button></div>`;
-  if(MODO==='real')h+=`<h2 class="sec">Pedidos en este aparato</h2><div class="card"><p class="note" style="margin:0">Por ahora los pedidos y la carta se guardan solo en este aparato. En la siguiente etapa se compartirán entre todos los equipos del negocio, al instante.</p><div class="row"><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
+  if(MODO==='real')h+=`<h2 class="sec">Datos compartidos</h2><div class="card"><p class="note" style="margin:0">Los pedidos, las mesas, los clientes y la carta se guardan en la base de datos y se ven al instante en todos los equipos del negocio. Si se corta el internet, el aparato sigue funcionando y envía los cambios cuando vuelve la señal; arriba verá cuántos faltan enviar.</p></div>`;
   else h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
   return h;
 },
@@ -859,10 +860,279 @@ async function entrarReal(user){
   S.config={nombre:m.negocios.nombre,ciudad:m.negocios.ciudad,mesas:m.negocios.mesas};
   rol=ROLES[m.rol]?m.rol:'mesero';
   equipo=null;codigos=null;ultimoCodigo=null;negDraft=null;closeSheet();
+  if(!S.seq)S.seq=0;
+  iniciarSync();
   save();ocultarAcceso();
   view=vistas().includes(location.hash.slice(1))?location.hash.slice(1):vistas()[0];
   render();window.scrollTo(0,0);
+  traerDatos().then(()=>sincronizar()).catch(e=>{SYNC.error=errTxt(e);pintarEstado()});
+  escuchar();
 }
+
+// ---------- Datos compartidos (etapa 3) ----------
+// Idea: la pantalla trabaja con S como siempre. Después de cada cambio se compara S con la última versión
+// confirmada por la base de datos ("SYNC") y se envía solo lo distinto. Lo que llega de otros equipos entra
+// a S por tiempo real. Si no hay internet, lo pendiente se reintenta solo.
+const SYNC={ped:{},mesa:{},cli:{},cat:{},prod:{},va:false,otra:false,trayendo:false,error:'',pend:0,vivo:false,listo:false,debe:false,canal:null,reintento:null};
+// Texto estable: la base de datos reordena las claves de los objetos guardados
+function canon(o){
+  if(Array.isArray(o))return '['+o.map(x=>x===undefined?'null':canon(x)).join(',')+']';
+  if(o&&typeof o==='object')return '{'+Object.keys(o).filter(k=>o[k]!==undefined).sort().map(k=>JSON.stringify(k)+':'+canon(o[k])).join(',')+'}';
+  return JSON.stringify(o===undefined?null:o);
+}
+const fijar=(o,k,v)=>{if(k in o||v)o[k]=v};
+const filaPedido=p=>({negocio_id:YO.negocioId,id:p.id,tipo:p.tipo,mesa:p.tipo==='mesa'?+p.mesa:null,estado:p.estado,pagado:!!p.pagado,anulado:!!p.anulado,datos:p,creado:new Date(p.creado||Date.now()).toISOString()});
+function pedidoDeFila(r){const p=clone(r.datos||{});p.id=r.id;p.n=r.n;p.estado=r.estado;fijar(p,'pagado',r.pagado);fijar(p,'anulado',r.anulado);return p}
+const MESA_VACIA=canon({cuenta:false,reserva:null,unida_a:null});
+const mesaLocal=n=>canon({cuenta:!!S.cuenta[n],reserva:S.reservas[n]||null,unida_a:S.uniones[n]?+S.uniones[n]:null});
+const mesaDeFila=r=>canon({cuenta:!!r.cuenta,reserva:r.reserva||null,unida_a:r.unida_a||null});
+function mesasLocales(){
+  const ns=new Set();for(let n=1;n<=S.config.mesas;n++)ns.add(n);
+  [S.cuenta,S.reservas,S.uniones,SYNC.mesa].forEach(o=>Object.keys(o).forEach(k=>ns.add(+k)));
+  return [...ns].map(n=>[n,mesaLocal(n)]);
+}
+function aplicarMesa(n,f){
+  const o=JSON.parse(f);
+  if(o.cuenta)S.cuenta[n]=true;else delete S.cuenta[n];
+  if(o.reserva)S.reservas[n]=o.reserva;else delete S.reservas[n];
+  if(o.unida_a)S.uniones[n]=o.unida_a;else delete S.uniones[n];
+}
+const catDeFila=r=>{const c=clone(r.datos||{});c.id=r.id;c.n=r.nombre;fijar(c,'oculto',r.oculta);return c};
+const prodDeFila=r=>{const m=clone(r.datos||{});m.id=r.id;m.cat=r.cat;m.nombre=r.nombre;m.precio=Number(r.precio);fijar(m,'agotado',r.agotado);fijar(m,'oculto',r.oculto);return m};
+const filaCat=(c,i)=>({negocio_id:YO.negocioId,id:c.id,nombre:c.n||'',oculta:!!c.oculto,orden:i,datos:c});
+const filaProd=(m,i)=>({negocio_id:YO.negocioId,id:m.id,cat:m.cat||'',nombre:m.nombre||'',precio:Number(m.precio)||0,agotado:!!m.agotado,oculto:!!m.oculto,orden:i,datos:m});
+const esDueno=()=>rol==='dueno';
+
+function iniciarSync(){
+  let sn={};try{sn=JSON.parse(lsGet(KEY+'-sync')||'{}')}catch(e){}
+  Object.assign(SYNC,{ped:sn.ped||{},mesa:sn.mesa||{},cli:sn.cli||{},cat:sn.cat||{},prod:sn.prod||{},error:'',pend:0,vivo:false,listo:false});
+}
+function guardarSync(){
+  const ids=new Set([...S.pedidos,...S.anulados].map(p=>p.id)),ped={};
+  Object.keys(SYNC.ped).forEach(id=>{if(ids.has(id))ped[id]=SYNC.ped[id]});
+  SYNC.ped=ped;
+  lsSet(KEY+'-sync',JSON.stringify({ped,mesa:SYNC.mesa,cli:SYNC.cli,cat:SYNC.cat,prod:SYNC.prod}));
+}
+function pendientes(){
+  let n=[...S.pedidos,...S.anulados].filter(p=>canon(p)!==SYNC.ped[p.id]).length;
+  n+=mesasLocales().filter(([k,f])=>f!==(SYNC.mesa[k]??MESA_VACIA)).length;
+  n+=Object.entries(S.clientes).filter(([c,d])=>c&&canon(d)!==SYNC.cli[c]).length;
+  if(esDueno()){
+    n+=S.cats.filter(c=>canon(c)!==SYNC.cat[c.id]).length+Object.keys(SYNC.cat).filter(id=>!S.cats.some(c=>c.id===id)).length;
+    n+=S.menu.filter(m=>canon(m)!==SYNC.prod[m.id]).length+Object.keys(SYNC.prod).filter(id=>!S.menu.some(m=>m.id===id)).length;
+  }
+  return n;
+}
+function pintarEstado(){
+  const el=$('#modo-txt');if(!el)return;
+  let txt='Demostración · datos de ejemplo',mal=false;
+  if(MODO==='real'){
+    const p=SYNC.pend;
+    if(SYNC.error&&p){txt='Sin conexión · '+p+(p>1?' cambios':' cambio')+' por enviar';mal=true}
+    else if(SYNC.error&&!SYNC.listo){txt='Sin conexión · trabajando con lo guardado';mal=true}
+    else if(p)txt='Guardando…';
+    else if(!SYNC.listo||!SYNC.vivo)txt='Conectando…';
+    else txt='Conectado · '+YO.nombre;
+  }
+  el.textContent=txt;el.classList.toggle('off',mal);
+}
+// No redibujar mientras alguien escribe o arma un pedido; se hace apenas termine
+const ocupado=()=>view==='admin'||pop||sheetFn===sheetBuilder||sheetFn===sheetWiz||(sheetFn&&$('#panel input, #panel textarea, #panel select'));
+function refrescar(){if(ocupado()){SYNC.debe=true;return}SYNC.debe=false;render()}
+setInterval(()=>{if(MODO==='real'&&SYNC.debe&&!ocupado()){SYNC.debe=false;render()}},1500);
+
+// Trae todo del negocio. Lo cambiado aquí y aún no enviado se conserva y se envía después.
+async function traerDatos(){
+  if(MODO!=='real'||SYNC.trayendo)return;
+  SYNC.trayendo=true;
+  try{
+    // Esperar a que termine un envío en curso
+    while(SYNC.va)await new Promise(r=>setTimeout(r,150));
+    await traerDatosYa();
+  }finally{SYNC.trayendo=false}
+}
+async function traerDatosYa(){
+  const N=YO.negocioId,desde=new Date();desde.setHours(0,0,0,0);desde.setDate(desde.getDate()-1);
+  const r=await Promise.all([
+    sb.from('pedidos').select('*').eq('negocio_id',N).gte('creado',desde.toISOString()),
+    sb.from('pedidos').select('*').eq('negocio_id',N).lt('creado',desde.toISOString()).eq('pagado',false).eq('anulado',false),
+    sb.from('mesas_estado').select('*').eq('negocio_id',N),
+    sb.from('clientes').select('cel,datos').eq('negocio_id',N),
+    sb.from('negocios').select('nombre,ciudad,mesas,ultimo_numero').eq('id',N).single(),
+    sb.from('categorias').select('*').eq('negocio_id',N).order('orden'),
+    sb.from('productos').select('*').eq('negocio_id',N).order('orden')]);
+  const e=r.find(x=>x.error);if(e)throw e.error;
+  const [pa,pb,me,cl,ne,ca,pr]=r.map(x=>x.data);
+  // Pedidos
+  const remoto=new Map([...pa,...pb].map(f=>[f.id,pedidoDeFila(f)]));
+  const pend=[...S.pedidos,...S.anulados].filter(p=>canon(p)!==SYNC.ped[p.id]);
+  const ped={};remoto.forEach((p,id)=>ped[id]=canon(p));
+  const todos=new Map(remoto);pend.forEach(p=>{todos.set(p.id,p);if(!remoto.has(p.id)&&SYNC.ped[p.id]!==undefined)ped[p.id]=SYNC.ped[p.id]});
+  const lista=[...todos.values()].sort((a,b)=>(a.creado||0)-(b.creado||0));
+  S.pedidos=lista.filter(p=>!p.anulado);S.anulados=lista.filter(p=>p.anulado);SYNC.ped=ped;
+  // Mesas
+  const remM={};me.forEach(f=>remM[f.mesa]=mesaDeFila(f));
+  const pendM=mesasLocales().filter(([n,f])=>f!==(SYNC.mesa[n]??MESA_VACIA));
+  S.cuenta={};S.reservas={};S.uniones={};
+  Object.entries(remM).forEach(([n,f])=>aplicarMesa(+n,f));
+  pendM.forEach(([n,f])=>aplicarMesa(n,f));
+  SYNC.mesa=remM;
+  // Clientes
+  const remC={},pendC=Object.entries(S.clientes).filter(([c,d])=>c&&canon(d)!==SYNC.cli[c]);
+  S.clientes={};cl.forEach(f=>{S.clientes[f.cel]=f.datos||{};remC[f.cel]=canon(f.datos||{})});
+  pendC.forEach(([c,d])=>S.clientes[c]=d);SYNC.cli=remC;
+  // Carta: si la base de datos aún no tiene carta, la del Dueño se sube desde aquí
+  if(ca.length||pr.length){
+    const yo=esDueno();
+    const unir=(remotos,locales,snap,deFila)=>{
+      const borrados=new Set(yo?Object.keys(snap).filter(id=>!locales.some(x=>x.id===id)):[]);
+      const pendL=yo?locales.filter(x=>canon(x)!==snap[x.id]):[];
+      const out=remotos.map(deFila).filter(x=>!borrados.has(x.id));
+      pendL.forEach(x=>{const i=out.findIndex(y=>y.id===x.id);if(i>=0)out[i]=x;else out.push(x)});
+      const nuevoSnap={};remotos.forEach(f=>nuevoSnap[f.id]=canon(deFila(f)));
+      return [out,nuevoSnap];
+    };
+    [S.cats,SYNC.cat]=unir(ca,S.cats,SYNC.cat,catDeFila);
+    [S.menu,SYNC.prod]=unir(pr,S.menu,SYNC.prod,prodDeFila);
+  } else {SYNC.cat={};SYNC.prod={}}
+  // Negocio
+  S.config={nombre:ne.nombre,ciudad:ne.ciudad,mesas:ne.mesas};
+  S.seq=Math.max(ne.ultimo_numero||0,...S.pedidos.map(p=>p.n||0),0);
+  SYNC.listo=true;SYNC.error='';SYNC.pend=pendientes();
+  save();guardarSync();pintarEstado();refrescar();
+}
+
+// Envía lo que cambió en este aparato
+async function sincronizar(){
+  if(MODO!=='real'||!sb||!SYNC.listo)return;
+  if(SYNC.va||SYNC.trayendo){SYNC.otra=true;return}
+  SYNC.va=true;SYNC.otra=false;
+  const N=YO.negocioId;let fallo=null,cambioN=false;
+  const ok=r=>{if(r.error){fallo=r.error;return false}return true};
+  try{
+    // Pedidos nuevos: la base de datos les pone el número
+    const todos=[...S.pedidos,...S.anulados];
+    const nuevos=todos.filter(p=>SYNC.ped[p.id]===undefined).map(p=>clone(p));
+    if(nuevos.length){
+      const r=await sb.from('pedidos').insert(nuevos.map(filaPedido)).select('id,n');
+      if(r.error&&r.error.code==='23505')nuevos.forEach(p=>SYNC.ped[p.id]='');
+      else if(ok(r))r.data.forEach(f=>{
+        const env=nuevos.find(p=>p.id===f.id),p=[...S.pedidos,...S.anulados].find(x=>x.id===f.id);
+        env.n=f.n;SYNC.ped[f.id]=canon(env);
+        if(p&&p.n!==f.n){p.n=f.n;cambioN=true}
+        S.seq=Math.max(S.seq,f.n);
+      });
+    }
+    // Pedidos cambiados
+    const cambiados=[...S.pedidos,...S.anulados].filter(p=>SYNC.ped[p.id]!==undefined&&canon(p)!==SYNC.ped[p.id]).map(p=>clone(p));
+    const rs=await Promise.all(cambiados.map(p=>sb.from('pedidos').update({tipo:p.tipo,mesa:p.tipo==='mesa'?+p.mesa:null,estado:p.estado,pagado:!!p.pagado,anulado:!!p.anulado,datos:p}).eq('negocio_id',N).eq('id',p.id).select('id')));
+    rs.forEach((r,i)=>{if(ok(r)){if(r.data.length)SYNC.ped[cambiados[i].id]=canon(cambiados[i]);else delete SYNC.ped[cambiados[i].id]}});
+    // Mesas
+    const mesas=mesasLocales().filter(([n,f])=>f!==(SYNC.mesa[n]??MESA_VACIA));
+    if(mesas.length){
+      const r=await sb.from('mesas_estado').upsert(mesas.map(([n,f])=>({negocio_id:N,mesa:n,...JSON.parse(f)})),{onConflict:'negocio_id,mesa'});
+      if(ok(r))mesas.forEach(([n,f])=>SYNC.mesa[n]=f);
+    }
+    // Clientes
+    const cls=Object.entries(S.clientes).filter(([c,d])=>c&&canon(d)!==SYNC.cli[c]).map(([c,d])=>[c,canon(d),clone(d)]);
+    if(cls.length){
+      const r=await sb.from('clientes').upsert(cls.map(([c,,d])=>({negocio_id:N,cel:c,datos:d})),{onConflict:'negocio_id,cel'});
+      if(ok(r))cls.forEach(([c,f])=>SYNC.cli[c]=f);
+    }
+    // Carta (solo el Dueño la cambia)
+    if(esDueno()){
+      for(const [tabla,lista,snap,fila] of [['categorias',S.cats,SYNC.cat,filaCat],['productos',S.menu,SYNC.prod,filaProd]]){
+        const cambia=lista.map((x,i)=>[clone(x),i]).filter(([x])=>canon(x)!==snap[x.id]);
+        if(cambia.length){
+          const r=await sb.from(tabla).upsert(cambia.map(([x,i])=>fila(x,i)),{onConflict:'negocio_id,id'});
+          if(ok(r))cambia.forEach(([x])=>snap[x.id]=canon(x));
+        }
+        const borrar=Object.keys(snap).filter(id=>!lista.some(x=>x.id===id));
+        if(borrar.length){
+          const r=await sb.from(tabla).delete().eq('negocio_id',N).in('id',borrar);
+          if(ok(r))borrar.forEach(id=>delete snap[id]);
+        }
+      }
+    }
+  }catch(e){fallo=e}
+  SYNC.va=false;
+  SYNC.error=fallo?errTxt(fallo):'';
+  SYNC.pend=pendientes();
+  guardarSync();
+  if(cambioN){save();refrescar()}
+  pintarEstado();
+  clearTimeout(SYNC.reintento);
+  if(SYNC.otra)sincronizar();
+  else if(SYNC.pend)SYNC.reintento=setTimeout(sincronizar,fallo?8000:1500);
+}
+
+// Recibe al instante lo que cambian los otros equipos
+function escuchar(){
+  if(SYNC.canal)return;
+  const N=YO.negocioId;let primera=true;
+  const filtro={schema:'public',filter:'negocio_id=eq.'+N};
+  SYNC.canal=sb.channel('negocio-'+N)
+    .on('postgres_changes',{event:'INSERT',table:'pedidos',...filtro},x=>llegaPedido(x.new))
+    .on('postgres_changes',{event:'UPDATE',table:'pedidos',...filtro},x=>llegaPedido(x.new))
+    .on('postgres_changes',{event:'*',table:'mesas_estado',...filtro},x=>llegaMesa(x.new))
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'negocios',filter:'id=eq.'+N},x=>llegaNegocio(x.new))
+    .on('postgres_changes',{event:'INSERT',table:'categorias',...filtro},x=>llegaCarta('cat',x.new))
+    .on('postgres_changes',{event:'UPDATE',table:'categorias',...filtro},x=>llegaCarta('cat',x.new))
+    .on('postgres_changes',{event:'INSERT',table:'productos',...filtro},x=>llegaCarta('prod',x.new))
+    .on('postgres_changes',{event:'UPDATE',table:'productos',...filtro},x=>llegaCarta('prod',x.new))
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'categorias'},x=>quitaCarta('cat',x.old))
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'productos'},x=>quitaCarta('prod',x.old))
+    .subscribe(st=>{
+      SYNC.vivo=st==='SUBSCRIBED';pintarEstado();
+      // Al volver la conexión, traer lo que pasó mientras tanto
+      if(SYNC.vivo){if(!primera)traerDatos().then(()=>sincronizar()).catch(()=>{});primera=false}
+    });
+}
+function llegaPedido(f){
+  if(!f||!f.id||f.negocio_id!==YO.negocioId)return;
+  const p=pedidoDeFila(f),firma=canon(p);
+  const L=[...S.pedidos,...S.anulados].find(x=>x.id===f.id);
+  S.seq=Math.max(S.seq,p.n||0);
+  if(L&&SYNC.ped[f.id]!==undefined&&canon(L)!==SYNC.ped[f.id]&&canon(L)!==firma){SYNC.ped[f.id]=firma;return}  // aquí hay un cambio sin enviar: se envía después
+  SYNC.ped[f.id]=firma;
+  if(L&&canon(L)===firma)return;
+  S.pedidos=S.pedidos.filter(x=>x.id!==f.id);S.anulados=S.anulados.filter(x=>x.id!==f.id);
+  if(p.anulado)S.anulados.push(p);else{S.pedidos.push(p);S.pedidos.sort((a,b)=>(a.creado||0)-(b.creado||0))}
+  save();guardarSync();refrescar();
+}
+function llegaMesa(f){
+  if(!f||f.negocio_id!==YO.negocioId)return;
+  const n=f.mesa,firma=mesaDeFila(f),local=mesaLocal(n);
+  if(local!==(SYNC.mesa[n]??MESA_VACIA)&&local!==firma){SYNC.mesa[n]=firma;return}
+  SYNC.mesa[n]=firma;
+  if(local===firma)return;
+  aplicarMesa(n,firma);save();guardarSync();refrescar();
+}
+function llegaNegocio(f){
+  if(!f||f.id!==YO.negocioId)return;
+  S.seq=Math.max(S.seq,f.ultimo_numero||0);
+  const c={nombre:f.nombre,ciudad:f.ciudad,mesas:f.mesas};
+  if(canon(c)===canon(S.config))return;
+  S.config=c;save();refrescar();
+}
+function llegaCarta(tipo,f){
+  if(!f||f.negocio_id!==YO.negocioId)return;
+  const lista=tipo==='cat'?S.cats:S.menu,snap=tipo==='cat'?SYNC.cat:SYNC.prod;
+  const x=(tipo==='cat'?catDeFila:prodDeFila)(f),firma=canon(x),i=lista.findIndex(y=>y.id===f.id);
+  if(esDueno()&&i>=0&&canon(lista[i])!==snap[f.id]&&canon(lista[i])!==firma){snap[f.id]=firma;return}
+  snap[f.id]=firma;
+  if(i>=0&&canon(lista[i])===firma)return;
+  if(i>=0)lista[i]=x;else lista.push(x);
+  save();guardarSync();refrescar();
+}
+function quitaCarta(tipo,f){
+  if(!f||f.negocio_id!==YO.negocioId)return;
+  const snap=tipo==='cat'?SYNC.cat:SYNC.prod;delete snap[f.id];
+  if(tipo==='cat')S.cats=S.cats.filter(c=>c.id!==f.id);else S.menu=S.menu.filter(m=>m.id!==f.id);
+  save();guardarSync();refrescar();
+}
+window.addEventListener('online',()=>{if(MODO==='real')traerDatos().then(()=>sincronizar()).catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(MODO==='real'&&document.visibilityState==='visible'&&SYNC.listo)traerDatos().then(()=>sincronizar()).catch(e=>{SYNC.error=errTxt(e);pintarEstado()})});
 document.addEventListener('submit',async e=>{
   const f=e.target.closest('[data-form]');if(!f)return;
   e.preventDefault();
@@ -900,7 +1170,7 @@ function render(){
   if(!vistas().includes(view))view=vistas()[0];
   $('#brand').textContent=negocio();
   $('#rol-n').textContent=ROLES[rol].n;
-  $('#modo-txt').textContent=MODO==='real'?'Conectado · '+YO.nombre:'Demostración · datos de ejemplo';
+  pintarEstado();
   $('.rol-btn small').textContent=MODO==='real'?'Su cuenta':'Entraste como';
   let ml=0;for(let n=1;n<=S.config.mesas;n++)if(mesaInfo(n).st==='listo')ml++;
   const badge={mesas:ml+[...llevarActivos(),...recogerActivos()].filter(p=>p.estado==='listo').length,delivery:deliveryActivos().length,cocina:enCocina().length,moto:S.pedidos.filter(p=>p.tipo==='delivery'&&(p.estado==='listo'||p.estado==='en_camino')).length,caja:0,admin:S.menu.filter(m=>m.agotado).length};
@@ -1202,7 +1472,7 @@ function sheetRol(){
 
 // ---------- Acciones ----------
 const find=id=>S.pedidos.find(p=>p.id===id);
-function commit(msg){save();render();if(msg)toast(msg)}
+function commit(msg){save();render();if(msg)toast(msg);if(MODO==='real')sincronizar()}
 const err=(id,t)=>{const el=$(id);el.textContent=t;el.hidden=false};
 function readNeg(){
   if(!negDraft||!$('#n-nom'))return;

@@ -16,7 +16,7 @@ es público: no guardes aquí datos reales de clientes ni secretos.
 | Diagrama, PDF y su generador | Repositorio privado `limafiestasyeventos-pixel/cafe-demo-docs`; lee su README |
 | Datos de la demostración | `localStorage`, clave `cafe-demo-v1`. Cada navegador tiene los suyos |
 | Cuentas, negocios y personal | Supabase, proyecto `cafe-demo`, plan gratis, región Este de EE. UU. (la pantalla nueva no ofreció São Paulo) |
-| Pedidos y carta con cuenta | Todavía en `localStorage`, clave `cafe-real-<negocio_id>`, hasta la etapa 3 |
+| Pedidos, mesas, clientes y carta con cuenta | Supabase, al instante. Copia local en `cafe-real-<negocio_id>` y lo confirmado por la base en `cafe-real-<negocio_id>-sync` |
 | SQL de Supabase | `supabase/01-tablas.sql` (instalación completa) y `02-invitaciones-con-codigo.sql` (cambio ya aplicado o por aplicar en el proyecto del dueño) |
 
 ## Cómo trabajar y publicar
@@ -110,8 +110,15 @@ Si cambias datos guardados, agrega la conversión en `migrate()`: el dueño tien
 1. **Conectar la base de datos (el siguiente paso grande).** Hoy los equipos no comparten pedidos. Plan: Supabase con
    `negocio_id` y seguridad por fila, tiempo real e inicio de sesión. Antes de usar datos reales de clientes hay que
    agregar inicio de sesión: hoy cualquiera con el enlace abre el sistema y elige un rol.
-   - Etapas: 1) cuenta y tablas (hecha), 2) inicio de sesión y roles (hecha), 3) pantallas conectadas en tiempo real,
-     4) pasar la carta, 5) prueba con varios equipos.
+   - Etapas: 1) cuenta y tablas, 2) inicio de sesión y roles, 3) pedidos, mesas y clientes en tiempo real y 4) carta
+     compartida: hechas. Falta 5) prueba real del dueño con varios equipos.
+   - Cómo funciona la etapa 3: las pantallas siguen usando `S`. `commit()` llama a `sincronizar()`, que compara `S` con
+     `SYNC` (lo último confirmado, con `canon()` porque jsonb reordena claves) y envía solo lo distinto. `traerDatos()`
+     carga al entrar, al volver la conexión y al volver a la pestaña; conserva lo no enviado. `escuchar()` recibe los
+     cambios de otros equipos por tiempo real. Pedidos: el número `n` lo pone la base; el del aparato es provisional.
+     Solo el Dueño envía la carta; si la base no tiene carta, sube la de su aparato. Los pedidos no se borran.
+   - Se probó con un Supabase simulado entre dos pestañas (pedido, cocina, unir y cobrar, carta, anular, sin conexión).
+     Si dos equipos cambian el mismo pedido a la vez, gana el último.
    - Pendiente conocido: cualquiera con el enlace puede crear una cuenta y su propio negocio (queda aislado). Cuando se
      venda, limitar quién crea negocios. Sin correo, el trabajador que olvida su contraseña necesita cuenta y código nuevos.
    - `supabase/01-tablas.sql`: negocios, miembros (roles `dueno`, `cajero`, `mesero`, `cocina`, `moto`), invitaciones con
