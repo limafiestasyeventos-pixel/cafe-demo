@@ -144,3 +144,6 @@ Si cambias datos guardados, agrega la conversión en `migrate()`: el dueño tien
 - `mapQuery`, `mapLink`, `dirTxt`: Google Maps.
 - `SB_URL`, `SB_KEY`, `MODO`, `YO`: conexión y cuenta. `arrancar`, `acceso`, `entrarReal`: pantalla de acceso.
 - `personalReal`, `cargarEquipo`, `invCrear`, `mAct`: personal y códigos en Admin (modo con cuenta).
+- `ADMIN.clientes`, `cargarClientes`, `clientesLista`, `descargarClientes`: Admin → Clientes (solo delivery, por celular).
+  Con cuenta, los totales salen de todo el historial de pedidos en Supabase (de mil en mil, solo los campos necesarios),
+  no de `S.pedidos`, que solo tiene los días recientes. Excel = CSV con BOM para que Excel lea las tildes.

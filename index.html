@@ -167,6 +167,7 @@ button.card{text-align:left;width:100%}
 .seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:16px;overflow-x:auto}
 .seg button{flex:1;border:0;background:none;border-radius:10px;padding:9px 12px;font-weight:600;color:var(--muted);white-space:nowrap}
 .seg button.on{background:var(--brand);color:var(--on-brand)}
+@media (max-width:420px){.seg{gap:2px}.seg button{padding:9px 6px;font-size:14px}}
 .fchips{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:6px;margin-bottom:8px}
 .card.catbar{flex-direction:row;text-align:left;}
 .catbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
@@ -188,6 +189,11 @@ button.card{text-align:left;width:100%}
 .rolec.on{border-color:var(--brand);background:var(--soft)}
 .rolec b{font-family:var(--f-display);font-size:19px;font-weight:800}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.cl-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cl-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.cl-res div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.cl-res b{display:block;font-size:20px;font-family:var(--f-display)}
+.cl-res span{font-size:12px;color:var(--muted)}
 .prow select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:6px 8px;min-height:36px}
 .addp{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end}
 @media (max-width:480px){.addp{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.addp .btn{grid-column:1/-1}}
@@ -735,10 +741,69 @@ caja(){
 },
 admin(){
   let h=`<div class="vhead"><div><h1>Administración</h1><p>Solo el dueño entra aquí. Los cambios se ven al instante en las demás pantallas.</p></div></div>`;
-  h+=`<div class="seg" role="tablist">${[['carta','Carta'],['negocio','Negocio'],['personal','Personal']].map(([k,t])=>`<button class="${adminTab===k?'on':''}" data-act="atab" data-t="${k}" role="tab" aria-selected="${adminTab===k}">${t}</button>`).join('')}</div>`;
+  h+=`<div class="seg" role="tablist">${[['carta','Carta'],['negocio','Negocio'],['personal','Personal'],['clientes','Clientes']].map(([k,t])=>`<button class="${adminTab===k?'on':''}" data-act="atab" data-t="${k}" role="tab" aria-selected="${adminTab===k}">${t}</button>`).join('')}</div>`;
   return h+ADMIN[adminTab]();
 }};
 
+// ---------- Admin → Clientes ----------
+let clStats=null,clBusca='',clOrden='recientes';
+const totalPedido=p=>(p.items||[]).reduce((a,i)=>a+(+i.precio||0)*(+i.cant||0),0)+(+p.envio||0);
+// Resumen por celular: cuántos pedidos de delivery, cuánto gastó y cuándo fue el último (sin anulados)
+function resumirClientes(filas){
+  const m={};
+  filas.forEach(f=>{if(!f.cel)return;const r=m[f.cel]||(m[f.cel]={n:0,total:0,ult:0});r.n++;r.total+=f.total;r.ult=Math.max(r.ult,f.creado)});
+  return m;
+}
+async function cargarClientes(){
+  if(cargarClientes.va)return;cargarClientes.va=true;
+  try{
+    if(MODO!=='real'){
+      clStats=resumirClientes(S.pedidos.filter(p=>p.tipo==='delivery'&&!p.anulado).map(p=>({cel:p.cliente&&p.cliente.cel,total:totalPedido(p),creado:p.creado})));
+      cargarClientes.va=false;return;  // en la demostración es inmediato: no hace falta redibujar
+    } else {
+      // Todo el historial, de mil en mil, trayendo solo lo necesario
+      const filas=[];
+      for(let i=0;;i+=1000){
+        const r=await sb.from('pedidos').select('creado,cel:datos->cliente->>cel,items:datos->items,envio:datos->envio').eq('negocio_id',YO.negocioId).eq('tipo','delivery').eq('anulado',false).order('creado').range(i,i+999);
+        if(r.error)throw r.error;
+        r.data.forEach(f=>filas.push({cel:f.cel,total:totalPedido(f),creado:new Date(f.creado).getTime()}));
+        if(r.data.length<1000)break;
+      }
+      clStats=resumirClientes(filas);
+    }
+  }catch(e){clStats='error';toast(errTxt(e))}
+  cargarClientes.va=false;
+  if(view==='admin'&&adminTab==='clientes')render();
+}
+function clientesDatos(){
+  const st=clStats&&clStats!=='error'?clStats:{};
+  return Object.entries(S.clientes).filter(([cel])=>cel).map(([cel,c])=>({cel,c,s:st[cel]||{n:0,total:0,ult:0}}));
+}
+function clientesLista(){
+  const q=clBusca.trim().toLowerCase(),qd=q.replace(/\D/g,'');
+  let l=clientesDatos().filter(({cel,c})=>!q||String(c.nombre||'').toLowerCase().includes(q)||(qd&&cel.includes(qd))||String(c.dir||'').toLowerCase().includes(q));
+  const ord={recientes:(a,b)=>b.s.ult-a.s.ult,pedidos:(a,b)=>b.s.n-a.s.n||b.s.ult-a.s.ult,gasto:(a,b)=>b.s.total-a.s.total,nombre:(a,b)=>String(a.c.nombre||'').localeCompare(String(b.c.nombre||''),'es')}[clOrden];
+  l.sort(ord);
+  if(!l.length)return `<div class="empty">${q?'Ningún cliente coincide con la búsqueda.':'Todavía no hay clientes. Se guardan solos al registrar un pedido de delivery.'}</div>`;
+  return l.map(({cel,c,s})=>{
+    const lugar=[c.dir,c.lugar].filter(Boolean).join(', ');
+    const saludo=`Hola ${String(c.nombre||'').split(' ')[0]}, te saluda ${S.config.nombre}.`;
+    return `<div class="prow"><div><div class="an">${esc(c.nombre||'Sin nombre')}</div><div class="meta">${esc(cel)}${lugar?' · '+esc(lugar):''}</div>${c.ref?`<div class="meta">Ref.: ${esc(c.ref)}</div>`:''}<div class="meta"><b>${s.n} pedido${s.n===1?'':'s'}</b> · ${money(s.total)}${s.ult?' · último el '+new Date(s.ult).toLocaleDateString('es-PE'):''}</div></div><div class="aside"><a class="btn small" target="_blank" rel="noopener" href="${waLink(cel,saludo)}" aria-label="Escribir a ${esc(c.nombre||cel)} por WhatsApp">WhatsApp</a></div></div>`;
+  }).join('');
+}
+function descargarClientes(){
+  const l=clientesDatos().sort((a,b)=>b.s.ult-a.s.ult);
+  if(!l.length){toast('No hay clientes para descargar');return}
+  const celda=v=>{const s=String(v??'');return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  const filas=[['Nombre','Celular','Dirección','Distrito o ciudad','Referencia','Ubicación','Pedidos','Total gastado (S/)','Último pedido'],
+    ...l.map(({cel,c,s})=>[c.nombre,cel,c.dir,c.lugar,c.ref,c.ubic,s.n,s.total.toFixed(2),s.ult?new Date(s.ult).toLocaleDateString('es-PE'):''])];
+  const csv='\ufeff'+filas.map(f=>f.map(celda).join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='clientes-'+String(S.config.nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  toast(l.length+' cliente'+(l.length>1?'s':'')+' descargado'+(l.length>1?'s':''));
+}
 const ADMIN={
 carta(){
   if(adminCat!=='todas'&&!S.cats.some(c=>c.id===adminCat))adminCat='todas';
@@ -764,6 +829,17 @@ negocio(){
   h+=`<p class="err" id="n-err" hidden></p><div class="row" style="margin-top:14px"><button class="btn primary" data-act="negSave">Guardar cambios</button><button class="btn ghost" data-act="negUndo">Descartar</button></div>`;
   if(MODO==='real')h+=`<h2 class="sec">Datos compartidos</h2><div class="card"><p class="note" style="margin:0">Los pedidos, las mesas, los clientes y la carta se guardan en la base de datos y se ven al instante en todos los equipos del negocio. Si se corta el internet, el aparato sigue funcionando y envía los cambios cuando vuelve la señal; arriba verá cuántos faltan enviar.</p></div>`;
   else h+=`<h2 class="sec">Datos de prueba</h2><div class="card"><p class="note" style="margin:0">Este prototipo guarda todo solo en este aparato. Si abre otra pestaña en el mismo navegador (por ejemplo, Cocina en una y Mesas en otra), se actualizan entre sí. Para usarlo entre varios celulares hace falta la base de datos (Supabase), que es el siguiente paso.</p><div class="row"><button class="btn small" data-act="reset" data-mode="seed">Volver a los datos de ejemplo</button><button class="btn small" data-act="reset" data-mode="blank">Borrar pedidos (mantener carta)</button></div></div>`;
+  return h;
+},
+clientes(){
+  if(clStats===null){cargarClientes();if(clStats===null)return '<div class="empty">Cargando los clientes…</div>'}
+  if(clStats==='error')return '<div class="empty">No se pudieron cargar los pedidos de los clientes.<div class="row" style="justify-content:center;margin-top:10px"><button class="btn small" data-act="clRecargar">Volver a probar</button></div></div>';
+  const d=clientesDatos(),conPed=d.filter(x=>x.s.n),total=d.reduce((a,x)=>a+x.s.total,0),frec=d.filter(x=>x.s.n>=3).length;
+  let h=`<div class="cl-res"><div><b>${d.length}</b><span>clientes de delivery</span></div><div><b>${frec}</b><span>con 3 pedidos o más</span></div><div><b class="money">${money(total)}</b><span>vendido en delivery</span></div><div><b>${conPed.length?money(total/conPed.reduce((a,x)=>a+x.s.n,0)):'—'}</b><span>ticket promedio</span></div></div>`;
+  h+=`<input class="tk-busca" id="cl-busca" type="search" autocomplete="off" placeholder="Buscar por nombre, celular o dirección" aria-label="Buscar cliente" value="${esc(clBusca)}">`;
+  h+=`<div class="cl-top"><div class="fchips" style="margin:0;padding:0">${[['recientes','Recientes'],['pedidos','Más pedidos'],['gasto','Más gasto'],['nombre','A–Z']].map(([k,n])=>`<button class="${clOrden===k?'on':''}" data-act="clOrden" data-o="${k}">${n}</button>`).join('')}</div><button class="btn small" data-act="clExcel">Descargar Excel</button></div>`;
+  h+=`<div class="list" id="cl-list">${clientesLista()}</div>`;
+  h+=`<p class="note">Solo se guardan los clientes de delivery, por su celular; los de recoger y para llevar quedan con su nombre en cada pedido. Los totales no cuentan pedidos anulados e incluyen el costo de delivery. Son datos personales: guarde el Excel con cuidado y no lo comparta.</p>`;
   return h;
 },
 personal(){
@@ -1696,7 +1772,10 @@ const ACT={
   rendir:()=>{const e=efectivoMoto(),t=e.reduce((a,p)=>a+efectivoDe(p),0);e.forEach(p=>p.rendido=true);commit(`Recibido ${money(t)} del repartidor`)},
   reset:(d,b)=>{if(!armed(b))return;S=d.mode==='seed'?seed():blank(S);negDraft=null;motoSel.clear();commit(d.mode==='seed'?'Datos de ejemplo cargados':'Pedidos borrados; la carta se mantiene')},
   // Admin
-  atab:d=>{if(adminTab==='negocio')readNeg();adminTab=d.t;render()},
+  atab:d=>{if(adminTab==='negocio')readNeg();adminTab=d.t;if(d.t==='clientes')clStats=null;render()},
+  clOrden:d=>{clOrden=d.o;$('#cl-list').innerHTML=clientesLista();document.querySelectorAll('[data-act=clOrden]').forEach(b=>b.classList.toggle('on',b.dataset.o===clOrden))},
+  clRecargar:()=>{clStats=null;render()},
+  clExcel:()=>descargarClientes(),
   acat:d=>{adminCat=d.c;render()},
   agotado:d=>{const m=S.menu.find(x=>x.id===d.id);m.agotado=!m.agotado;commit(m.nombre+(m.agotado?' marcado como agotado':' disponible otra vez'))},
   prodEdit:d=>openSheet(sheetProd(d.id||null)),
@@ -1770,6 +1849,7 @@ document.addEventListener('input',e=>{
       draft.frecuente=true;redraw();
     }
   }
+  if(t.id==='cl-busca'){clBusca=t.value;$('#cl-list').innerHTML=clientesLista()}
   if(t.id==='tk-busca'){ticketBusca=t.value;$('#tk-list').innerHTML=ticketsLista()}
   if(t.id==='pop-nota'&&pop)pop.nota=t.value;
   if(t.id==='mx-monto'||t.id==='mx-con'){mix[t.id==='mx-monto'?'monto':'con']=t.value;$('#mix-res').innerHTML=mixRes();$('#mx-efe').value=mixEfectivo();tkRefrescar()}
