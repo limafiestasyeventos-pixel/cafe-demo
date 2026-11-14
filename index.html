@@ -191,6 +191,7 @@ button.card{text-align:left;width:100%}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .cl-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
 .cl-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.cl-acc{flex-direction:column;align-items:flex-end;gap:6px}
 .cl-res div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .cl-res b{display:block;font-size:20px;font-family:var(--f-display)}
 .cl-res span{font-size:12px;color:var(--muted)}
@@ -525,8 +526,8 @@ function seed(){
   add({tipo:'mesa',mesa:4,items:L([['Frappé Oreo',1],['Keke de zanahoria',1]]),estado:'listo',creado:now-14*m});
   add({tipo:'mesa',mesa:2,items:L([['Latte',1],['Flat white',1],['Croissant de jamón y queso',2,'Bien caliente']]),estado:'preparando',creado:now-9*m});
   add({tipo:'delivery',cliente:{nombre:'Lucía Torres',cel:'998877665',dir:'Calle Las Begonias 415, San Isidro',ref:'Oficina en el 5.º piso, preguntar en recepción',envio:9,pago:'efectivo',pagaCon:100},envio:9,items:L([['Mocha',2],['Alfajor',2,'Uno para regalo']]),estado:'nuevo',creado:now-2*m});
-  add({tipo:'recoger',cliente:{nombre:'Andrea',pago:'yape-pagado'},envio:0,items:L([['Latte',1],['Brownie',1]]),estado:'preparando',creado:now-1*m});
-  s.pedidos.filter(p=>p.tipo==='delivery').forEach(p=>{const {pago,pagaCon,...c}=p.cliente;s.clientes[c.cel]=c});
+  add({tipo:'recoger',cliente:{nombre:'Andrea',cel:'955443322',pago:'yape-pagado'},envio:0,items:L([['Latte',1],['Brownie',1]]),estado:'preparando',creado:now-1*m});
+  s.pedidos.filter(p=>p.cliente&&p.cliente.cel).forEach(p=>{const {pago,pagaCon,...c}=p.cliente;s.clientes[c.cel]=Object.assign(s.clientes[c.cel]||{},c)});
   s.reservas[5]={nombre:'Sofía',hora:'20:00',personas:4};
   return s;
 }
@@ -625,6 +626,25 @@ function marcarEdicion(p,antes){
   p.editado={en:Date.now(),veces:((p.editado&&p.editado.veces)||0)+1,cambios:enCoc?[...prev,...cambios]:cambios,cocina:enCoc};
   if(p.tipo==='mesa'&&agrego)S.cuenta[p.mesa]=false;
   return 'Ticket '+num(p)+' editado'+(volvio?': volvió a cocina':enCoc?': cocina ve el cambio':'');
+}
+// Guarda o actualiza un cliente por su celular. Con "reemplazar" (delivery) se toman sus datos tal como vienen;
+// si no, se completan los que ya tenía (por ejemplo, un cliente de delivery que ahora pasa a recoger).
+function guardarCliente(datos,reemplazar){
+  const cel=String(datos.cel||'').replace(/\D/g,'');if(cel.length!==9)return;
+  const prev=S.clientes[cel]||{},nuevo=reemplazar?{}:Object.assign({},prev);
+  Object.entries(datos).forEach(([k,v])=>{if(v!==undefined&&v!=='')nuevo[k]=v});
+  nuevo.cel=cel;
+  if(datos.promo!==undefined)nuevo.promo=!!datos.promo;else if(prev.promo!==undefined)nuevo.promo=prev.promo;
+  if(nuevo.promo)nuevo.promoEn=prev.promo&&prev.promoEn?prev.promoEn:Date.now();else delete nuevo.promoEn;
+  S.clientes[cel]=nuevo;
+}
+// Botón para avisar por WhatsApp que el pedido de recoger o para llevar ya está listo
+function avisoListo(p){
+  const c=p.cliente||{};if(!c.cel)return '';
+  let cobrar='';
+  if(p.tipo==='recoger'&&!prepago(p))cobrar=c.pago==='mixto'?' Por pagar en efectivo: '+money(parteEfectivo(p))+'.':' Total a pagar: '+money(tot(p))+'.';
+  const msg=`Hola ${String(c.nombre||'').split(' ')[0]}, tu pedido ${num(p)} de ${negocio()} ya está listo${p.tipo==='recoger'?' para recoger':'. Acércate al mostrador'}.${cobrar} ¡Gracias!`;
+  return `<a class="btn" target="_blank" rel="noopener" href="${waLink(c.cel,msg)}">Avisar por WhatsApp que está listo</a>`;
 }
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 function toast(t){const el=$('#toast');el.textContent=t;el.hidden=false;clearTimeout(toast.k);toast.k=setTimeout(()=>el.hidden=true,2600)}
@@ -746,27 +766,28 @@ admin(){
 }};
 
 // ---------- Admin → Clientes ----------
-let clStats=null,clBusca='',clOrden='recientes';
+let clStats=null,clBusca='',clOrden='recientes',clSoloPromo=false;
+const TIPO_CL={delivery:'delivery',recoger:'recoger',llevar:'para llevar'};
 const totalPedido=p=>(p.items||[]).reduce((a,i)=>a+(+i.precio||0)*(+i.cant||0),0)+(+p.envio||0);
 // Resumen por celular: cuántos pedidos de delivery, cuánto gastó y cuándo fue el último (sin anulados)
 function resumirClientes(filas){
   const m={};
-  filas.forEach(f=>{if(!f.cel)return;const r=m[f.cel]||(m[f.cel]={n:0,total:0,ult:0});r.n++;r.total+=f.total;r.ult=Math.max(r.ult,f.creado)});
+  filas.forEach(f=>{if(!f.cel)return;const r=m[f.cel]||(m[f.cel]={n:0,total:0,ult:0,tipos:{}});r.n++;r.total+=f.total;r.ult=Math.max(r.ult,f.creado);r.tipos[f.tipo]=(r.tipos[f.tipo]||0)+1});
   return m;
 }
 async function cargarClientes(){
   if(cargarClientes.va)return;cargarClientes.va=true;
   try{
     if(MODO!=='real'){
-      clStats=resumirClientes(S.pedidos.filter(p=>p.tipo==='delivery'&&!p.anulado).map(p=>({cel:p.cliente&&p.cliente.cel,total:totalPedido(p),creado:p.creado})));
+      clStats=resumirClientes(S.pedidos.filter(p=>p.cliente&&p.cliente.cel&&!p.anulado).map(p=>({cel:p.cliente.cel,tipo:p.tipo,total:totalPedido(p),creado:p.creado})));
       cargarClientes.va=false;return;  // en la demostración es inmediato: no hace falta redibujar
     } else {
       // Todo el historial, de mil en mil, trayendo solo lo necesario
       const filas=[];
       for(let i=0;;i+=1000){
-        const r=await sb.from('pedidos').select('creado,cel:datos->cliente->>cel,items:datos->items,envio:datos->envio').eq('negocio_id',YO.negocioId).eq('tipo','delivery').eq('anulado',false).order('creado').range(i,i+999);
+        const r=await sb.from('pedidos').select('creado,tipo,cel:datos->cliente->>cel,items:datos->items,envio:datos->envio').eq('negocio_id',YO.negocioId).in('tipo',['delivery','recoger','llevar']).eq('anulado',false).order('creado').range(i,i+999);
         if(r.error)throw r.error;
-        r.data.forEach(f=>filas.push({cel:f.cel,total:totalPedido(f),creado:new Date(f.creado).getTime()}));
+        r.data.forEach(f=>filas.push({cel:f.cel,tipo:f.tipo,total:totalPedido(f),creado:new Date(f.creado).getTime()}));
         if(r.data.length<1000)break;
       }
       clStats=resumirClientes(filas);
@@ -777,26 +798,27 @@ async function cargarClientes(){
 }
 function clientesDatos(){
   const st=clStats&&clStats!=='error'?clStats:{};
-  return Object.entries(S.clientes).filter(([cel])=>cel).map(([cel,c])=>({cel,c,s:st[cel]||{n:0,total:0,ult:0}}));
+  return Object.entries(S.clientes).filter(([cel])=>cel).map(([cel,c])=>({cel,c,s:st[cel]||{n:0,total:0,ult:0,tipos:{}}}));
 }
 function clientesLista(){
   const q=clBusca.trim().toLowerCase(),qd=q.replace(/\D/g,'');
-  let l=clientesDatos().filter(({cel,c})=>!q||String(c.nombre||'').toLowerCase().includes(q)||(qd&&cel.includes(qd))||String(c.dir||'').toLowerCase().includes(q));
+  let l=clientesDatos().filter(({c})=>!clSoloPromo||c.promo).filter(({cel,c})=>!q||String(c.nombre||'').toLowerCase().includes(q)||(qd&&cel.includes(qd))||String(c.dir||'').toLowerCase().includes(q));
   const ord={recientes:(a,b)=>b.s.ult-a.s.ult,pedidos:(a,b)=>b.s.n-a.s.n||b.s.ult-a.s.ult,gasto:(a,b)=>b.s.total-a.s.total,nombre:(a,b)=>String(a.c.nombre||'').localeCompare(String(b.c.nombre||''),'es')}[clOrden];
   l.sort(ord);
-  if(!l.length)return `<div class="empty">${q?'Ningún cliente coincide con la búsqueda.':'Todavía no hay clientes. Se guardan solos al registrar un pedido de delivery.'}</div>`;
+  if(!l.length)return `<div class="empty">${q||clSoloPromo?'Ningún cliente coincide con la búsqueda.':'Todavía no hay clientes. Se guardan solos al registrar un pedido con celular.'}</div>`;
   return l.map(({cel,c,s})=>{
     const lugar=[c.dir,c.lugar].filter(Boolean).join(', ');
     const saludo=`Hola ${String(c.nombre||'').split(' ')[0]}, te saluda ${S.config.nombre}.`;
-    return `<div class="prow"><div><div class="an">${esc(c.nombre||'Sin nombre')}</div><div class="meta">${esc(cel)}${lugar?' · '+esc(lugar):''}</div>${c.ref?`<div class="meta">Ref.: ${esc(c.ref)}</div>`:''}<div class="meta"><b>${s.n} pedido${s.n===1?'':'s'}</b> · ${money(s.total)}${s.ult?' · último el '+new Date(s.ult).toLocaleDateString('es-PE'):''}</div></div><div class="aside"><a class="btn small" target="_blank" rel="noopener" href="${waLink(cel,saludo)}" aria-label="Escribir a ${esc(c.nombre||cel)} por WhatsApp">WhatsApp</a></div></div>`;
+    return `<div class="prow"><div><div class="an">${esc(c.nombre||'Sin nombre')}</div><div class="meta">${esc(cel)}${lugar?' · '+esc(lugar):''}</div>${c.ref?`<div class="meta">Ref.: ${esc(c.ref)}</div>`:''}<div class="meta"><b>${s.n} pedido${s.n===1?'':'s'}</b>${s.n?' ('+Object.entries(s.tipos||{}).map(([k,v])=>v+' '+TIPO_CL[k]).join(', ')+')':''} · ${money(s.total)}${s.ult?' · último el '+new Date(s.ult).toLocaleDateString('es-PE'):''}</div></div><div class="aside cl-acc"><a class="btn small" target="_blank" rel="noopener" href="${waLink(cel,saludo)}" aria-label="Escribir a ${esc(c.nombre||cel)} por WhatsApp">WhatsApp</a><div class="row" style="gap:6px;justify-content:flex-end"><span class="note">Promociones</span><button class="sw ${c.promo?'on':''}" role="switch" aria-checked="${!!c.promo}" aria-label="${esc(c.nombre||cel)} acepta promociones" data-act="clPromo" data-cel="${cel}"></button></div></div></div>`;
   }).join('');
 }
 function descargarClientes(){
   const l=clientesDatos().sort((a,b)=>b.s.ult-a.s.ult);
   if(!l.length){toast('No hay clientes para descargar');return}
   const celda=v=>{const s=String(v??'');return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
-  const filas=[['Nombre','Celular','Dirección','Distrito o ciudad','Referencia','Ubicación','Pedidos','Total gastado (S/)','Último pedido'],
-    ...l.map(({cel,c,s})=>[c.nombre,cel,c.dir,c.lugar,c.ref,c.ubic,s.n,s.total.toFixed(2),s.ult?new Date(s.ult).toLocaleDateString('es-PE'):''])];
+  const ti=(s,k)=>(s.tipos||{})[k]||0;
+  const filas=[['Nombre','Celular','Acepta promociones','Dirección','Distrito o ciudad','Referencia','Ubicación','Pedidos','Delivery','Recoger','Para llevar','Total gastado (S/)','Último pedido'],
+    ...l.map(({cel,c,s})=>[c.nombre,cel,c.promo?'Sí':'No',c.dir,c.lugar,c.ref,c.ubic,s.n,ti(s,'delivery'),ti(s,'recoger'),ti(s,'llevar'),s.total.toFixed(2),s.ult?new Date(s.ult).toLocaleDateString('es-PE'):''])];
   const csv='\ufeff'+filas.map(f=>f.map(celda).join(',')).join('\r\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
@@ -834,12 +856,12 @@ negocio(){
 clientes(){
   if(clStats===null){cargarClientes();if(clStats===null)return '<div class="empty">Cargando los clientes…</div>'}
   if(clStats==='error')return '<div class="empty">No se pudieron cargar los pedidos de los clientes.<div class="row" style="justify-content:center;margin-top:10px"><button class="btn small" data-act="clRecargar">Volver a probar</button></div></div>';
-  const d=clientesDatos(),conPed=d.filter(x=>x.s.n),total=d.reduce((a,x)=>a+x.s.total,0),frec=d.filter(x=>x.s.n>=3).length;
-  let h=`<div class="cl-res"><div><b>${d.length}</b><span>clientes de delivery</span></div><div><b>${frec}</b><span>con 3 pedidos o más</span></div><div><b class="money">${money(total)}</b><span>vendido en delivery</span></div><div><b>${conPed.length?money(total/conPed.reduce((a,x)=>a+x.s.n,0)):'—'}</b><span>ticket promedio</span></div></div>`;
+  const d=clientesDatos(),conPed=d.filter(x=>x.s.n),total=d.reduce((a,x)=>a+x.s.total,0),promos=d.filter(x=>x.c.promo).length;
+  let h=`<div class="cl-res"><div><b>${d.length}</b><span>clientes con celular</span></div><div><b>${promos}</b><span>aceptan promociones</span></div><div><b class="money">${money(total)}</b><span>vendido a estos clientes</span></div><div><b>${conPed.length?money(total/conPed.reduce((a,x)=>a+x.s.n,0)):'—'}</b><span>ticket promedio</span></div></div>`;
   h+=`<input class="tk-busca" id="cl-busca" type="search" autocomplete="off" placeholder="Buscar por nombre, celular o dirección" aria-label="Buscar cliente" value="${esc(clBusca)}">`;
-  h+=`<div class="cl-top"><div class="fchips" style="margin:0;padding:0">${[['recientes','Recientes'],['pedidos','Más pedidos'],['gasto','Más gasto'],['nombre','A–Z']].map(([k,n])=>`<button class="${clOrden===k?'on':''}" data-act="clOrden" data-o="${k}">${n}</button>`).join('')}</div><button class="btn small" data-act="clExcel">Descargar Excel</button></div>`;
+  h+=`<div class="cl-top"><div class="fchips" style="margin:0;padding:0">${[['recientes','Recientes'],['pedidos','Más pedidos'],['gasto','Más gasto'],['nombre','A–Z']].map(([k,n])=>`<button class="${clOrden===k?'on':''}" data-act="clOrden" data-o="${k}">${n}</button>`).join('')}<button class="${clSoloPromo?'on':''}" data-act="clSoloPromo" aria-pressed="${clSoloPromo}">Solo aceptan promociones</button></div><button class="btn small" data-act="clExcel">Descargar Excel</button></div>`;
   h+=`<div class="list" id="cl-list">${clientesLista()}</div>`;
-  h+=`<p class="note">Solo se guardan los clientes de delivery, por su celular; los de recoger y para llevar quedan con su nombre en cada pedido. Los totales no cuentan pedidos anulados e incluyen el costo de delivery. Son datos personales: guarde el Excel con cuidado y no lo comparta.</p>`;
+  h+=`<p class="note">Aquí están los clientes de delivery, recoger y para llevar que dieron su celular. Los totales no cuentan pedidos anulados e incluyen el costo de delivery. <b>Envíe promociones solo a quienes aceptaron</b> (interruptor Promociones); si alguien pide no recibir más, apáguelo. Son datos personales: guarde el Excel con cuidado y no lo comparta.</p>`;
   return h;
 },
 personal(){
@@ -1312,15 +1334,15 @@ function sheetCobrarMix(n){return()=>{
 function sheetLlevar(){
   const ll=llevarActivos().sort((a,b)=>a.creado-b.creado);
   const rc=recogerActivos().sort((a,b)=>a.creado-b.creado);
-  const llHtml=ll.length?ll.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}<div class="meta">Pagado con ${esc(p.metodo)} · ${money(tot(p))}</div>${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Entregado al cliente</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos para llevar en curso.</div>';
-  const rcHtml=rc.length?rc.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}${cobroHtml(p)}${p.estado==='listo'?`<button class="btn ok" data-act="entregar" data-id="${p.id}" data-keep="1">Entregado${prepago(p)?'':' y cobrado'}</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos de WhatsApp por recoger.</div>';
+  const llHtml=ll.length?ll.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}<div class="meta">Pagado con ${esc(p.metodo)} · ${money(tot(p))}${p.cliente.cel?' · Cel. '+esc(p.cliente.cel):''}</div>${p.estado==='listo'?avisoListo(p):''}${p.estado==='listo'?`<button class="btn ok" data-act="serve" data-id="${p.id}">Entregado al cliente</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos para llevar en curso.</div>';
+  const rcHtml=rc.length?rc.map(p=>`<div class="card"><div class="card-top"><span class="card-title">${num(p)} · ${esc(p.cliente.nombre)}</span>${chipEdit(p)}${chip(p.estado)}</div>${itemsHtml(p)}${cobroHtml(p)}${p.estado==='listo'?avisoListo(p):''}${p.estado==='listo'?`<button class="btn ok" data-act="entregar" data-id="${p.id}" data-keep="1">Entregado${prepago(p)?'':' y cobrado'}</button>`:''}</div>`).join(''):'<div class="empty">No hay pedidos de WhatsApp por recoger.</div>';
   paint(head('Mostrador','Para llevar y recoger')+`<div class="sh-body"><h2 class="sec" style="margin-top:0">Recoger: pedidos de WhatsApp (${rc.length})</h2>${rcHtml}<h2 class="sec">Para llevar: clientes en el local (${ll.length})</h2>${llHtml}</div><div class="sh-foot"><button class="btn primary" data-act="addLlevar">+ Nuevo para llevar</button></div>`);
 }
 function sheetDelDet(id){return()=>{
   const p=S.pedidos.find(x=>x.id===id);if(!p){closeSheet();return}
   const c=p.cliente;
   if(p.tipo==='recoger'){
-    paint(head('Recoger · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><b>El cliente pasa a recoger por el local.</b></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div>${p.estado==='listo'?'':'<p class="note" style="margin:0">Cuando cocina lo marque como listo, aquí podrá entregarlo.</p>'}</div>${p.estado==='listo'?`<div class="sh-foot"><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`:''}`);
+    paint(head('Recoger · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><b>El cliente pasa a recoger por el local.</b>${c.cel?`<div class="meta">Celular <span class="num">${esc(c.cel)}</span></div>`:''}</div>${p.estado==='listo'?avisoListo(p):''}${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div>${p.estado==='listo'?'':'<p class="note" style="margin:0">Cuando cocina lo marque como listo, aquí podrá entregarlo.</p>'}</div>${p.estado==='listo'?`<div class="sh-foot"><button class="btn ok" data-act="entregar" data-id="${p.id}">Entregado${prepago(p)?'':' y cobrado'}</button></div>`:''}`);
     return;
   }
   paint(head('Delivery · '+num(p),esc(c.nombre))+`<div class="sh-body"><div class="row">${chip(p.estado)}${chipEdit(p)}<span class="meta">Pedido a las ${hora(p.creado)}</span></div><div class="card"><div>${esc(dirTxt(c))}</div><div class="meta">${esc(c.ref)}</div><div class="meta">Celular <span class="num">${esc(c.cel)}</span></div></div>${cobroHtml(p)}${itemsHtml(p)}<div class="totals"><div class="spread"><span>Productos</span><span class="money">${money(sub(p))}</span></div><div class="spread"><span>Delivery</span><span class="money">${money(p.envio)}</span></div><div class="spread"><span>Total</span><span class="money">${money(tot(p))}</span></div></div><a class="btn" href="${waLink(c.cel,`Hola ${c.nombre}, recibimos tu pedido ${num(p)} en ${negocio()}. Total ${money(tot(p))}. Pago: ${pagoTxt(p)}. Te avisamos cuando salga la moto.`)}" target="_blank" rel="noopener">Confirmar al cliente por WhatsApp</a><p class="note" style="margin:0">El botón abre WhatsApp con el mensaje ya escrito; usted decide si lo envía.</p></div>`);
@@ -1397,7 +1419,7 @@ function sheetBuilder(){
   if(bview==='menu'){
     paint(head(eb,'Elige productos')+chipsHtml()+`<div class="sh-body">${prodsHtml(d)}</div><div class="sh-foot"><button class="btn primary" data-act="bview" data-v="cart" ${count?'':'disabled'}>${count?`Revisar pedido · ${count} producto${count>1?'s':''} · ${money(st)}`:'Toca + para agregar productos'}</button></div>`);
   } else {
-    const extra=d.tipo==='llevar'?`${d.editId&&r2(st-d.antes)!==0?`<div class="edit-av"><b>Antes ${money(d.antes)} · Ahora ${money(st)}</b><span>${st>d.antes?'Cobre la diferencia de '+money(r2(st-d.antes))+' al cliente.':'Devuelva la diferencia de '+money(r2(d.antes-st))+' al cliente.'}</span></div>`:''}<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Ambos (efectivo + Yape o Plin)</option></select></div></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
+    const extra=d.tipo==='llevar'?`${d.editId&&r2(st-d.antes)!==0?`<div class="edit-av"><b>Antes ${money(d.antes)} · Ahora ${money(st)}</b><span>${st>d.antes?'Cobre la diferencia de '+money(r2(st-d.antes))+' al cliente.':'Devuelva la diferencia de '+money(r2(d.antes-st))+' al cliente.'}</span></div>`:''}<div class="two"><div class="field"><label for="l-nom">Nombre del cliente</label><input id="l-nom" autocomplete="off" value="${esc(d.nombreLlevar)}"></div><div class="field"><label for="l-met">Pagó con</label><select id="l-met">${METODOS.map(x=>`<option ${d.metodoLlevar===x?'selected':''}>${x}</option>`).join('')}<option value="Mixto" ${d.metodoLlevar==='Mixto'?'selected':''}>Ambos (efectivo + Yape o Plin)</option></select></div></div><div class="two"><div class="field"><label for="l-cel">Celular (opcional)</label><input id="l-cel" inputmode="numeric" maxlength="9" placeholder="9 dígitos" autocomplete="off" value="${esc(d.celLlevar||'')}"></div><label class="chk" style="align-self:end;min-height:44px"><input type="checkbox" id="l-promo" ${d.promoLlevar?'checked':''}> Acepta promociones por WhatsApp</label></div>${d.metodoLlevar==='Mixto'?mixHtml(st,'local'):''}<p class="err" id="l-err" hidden></p>`:'';
     paint(head(eb,'Revisar pedido')+`<div class="sh-body"><div class="tk-items" style="padding:0">${tkLineas(d)}</div>${extra}<div class="totals"><div class="spread"><span>Total</span><span class="money">${money(st)}</span></div></div></div><div class="sh-foot"><button class="btn ghost" data-act="bview" data-v="menu">← Agregar más</button><button class="btn primary" data-act="send">${d.editId?'Guardar cambios':'Enviar a cocina'}</button></div>`);
   }
 }
@@ -1421,7 +1443,7 @@ function totalesHtml(d){
 }
 const tkLineas=d=>d.items.map((i,k)=>`<div class="tk-line"><div class="pn">${esc(i.nombre)}</div>${i.op?`<div class="meta">${esc(i.op)}</div>`:''}${i.nota?`<div class="meta">Nota: ${esc(i.nota)}</div>`:''}<div class="tk-row"><div class="qty"><button data-act="qtyPaso" data-k="${k}" data-d="-1" aria-label="Quitar uno de ${esc(i.nombre)}" ${i.cant<2?'disabled':''}>−</button><span>${i.cant}</span><button data-act="qtyPaso" data-k="${k}" data-d="1" aria-label="Agregar uno de ${esc(i.nombre)}">+</button></div><span class="money">${money(i.precio*i.cant)}</span><button class="tk-edit" data-act="popEdit" data-k="${k}" title="Editar" aria-label="Editar ${esc(i.nombre)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button><button class="tk-del" data-act="qtyDel" data-k="${k}" title="Eliminar" aria-label="Eliminar ${esc(i.nombre)} del pedido">✕</button></div></div>`).join('');
 function ticketHtml(d){
-  const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?'<div class="tk-det">Pasa a recoger por el local</div>':`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(dirTxt(c))}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
+  const c=d.cliente,rec=d.tipo==='recoger',det=d.paso===2?'':rec?`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}<div class="tk-det">Pasa a recoger por el local</div>`:`${c.cel?`<div class="tk-det num">${esc(c.cel)}</div>`:''}${c.dir?`<div class="tk-det">${esc(dirTxt(c))}</div>`:''}${c.ref?`<div class="tk-det">${esc(c.ref)}</div>`:''}`;
   return `<div class="tk"><div class="tk-head"><div class="tk-eb">Ticket · ${rec?'Recoger':'Delivery'}</div><div class="tk-name">${c.nombre?esc(c.nombre):'Cliente sin nombre'}</div>${det}</div><div class="tk-items" data-scroll="c">${d.items.length?tkLineas(d):'<div class="tk-vacio">Los productos aparecerán aquí.</div>'}</div><div class="tk-foot"><div id="tk-tot">${totalesHtml(d)}</div></div></div>`;
 }
 function tkRefrescar(){
@@ -1489,7 +1511,9 @@ function sheetWiz(){
     const c=d.cliente,rec=d.tipo==='recoger';
     const modo=`<div class="modo" role="group" aria-label="Tipo de pedido"><button class="btn ${rec?'':'primary'}" data-act="wzTipo" data-t="delivery" aria-pressed="${!rec}">Delivery<small>La moto lo lleva</small></button><button class="btn ${rec?'primary':''}" data-act="wzTipo" data-t="recoger" aria-pressed="${rec}">Recoger<small>El cliente pasa al local</small></button></div>`;
     const nombre=`<div class="field"><label for="w-nom">Nombre del cliente</label><input id="w-nom" autocomplete="off" value="${esc(c.nombre)}"></div>`;
-    const campos=rec?`${nombre}<p class="note" style="margin:0">Para recoger solo hace falta el nombre, para llamarlo cuando venga.</p>`:`
+    const celular=`<div class="field"><label for="w-cel">Celular</label><input id="w-cel" inputmode="numeric" maxlength="9" placeholder="9 dígitos" autocomplete="off" value="${esc(c.cel)}"></div>`;
+    const promo=`<label class="chk"><input type="checkbox" id="w-promo" ${c.promo?'checked':''}> El cliente acepta recibir promociones por WhatsApp</label>`;
+    const campos=rec?`<div class="two">${nombre}${celular}</div>${d.frecuente?'<div class="hint">Cliente frecuente: su nombre se llenó solo.</div>':''}${promo}<p class="note" style="margin:0">Con el celular se le avisa por WhatsApp cuando su pedido esté listo.</p>`:`
       <div class="two">${nombre}
       <div class="field"><label for="w-cel">Teléfono</label><input id="w-cel" inputmode="numeric" maxlength="9" placeholder="9 dígitos" autocomplete="off" value="${esc(c.cel)}"></div></div>
       ${d.frecuente?'<div class="hint">Cliente frecuente: sus datos se llenaron solos.</div>':''}
@@ -1497,6 +1521,7 @@ function sheetWiz(){
       <div class="two"><div class="field"><label for="w-ref">Referencia (opcional)</label><input id="w-ref" autocomplete="off" placeholder="Color de la casa, piso, parque cercano…" value="${esc(c.ref)}"></div>
       <div class="field"><label for="w-env">Costo de delivery (S/)</label><input id="w-env" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${c.envio??''}"></div></div>
       <div class="field"><label for="w-ubi">Enlace de ubicación de Google Maps (opcional)</label><input id="w-ubi" type="url" inputmode="url" autocomplete="off" placeholder="Pegue aquí el enlace que mandó el cliente" value="${esc(c.ubic)}"></div>
+      ${promo}
       <p class="note" style="margin:0">Puede poner el costo ahora o en el paso de pago, cuando ya vea el tamaño del pedido.</p>
       <p class="note" style="margin:0">Pruebe con un teléfono de ejemplo: <span class="num">987654321</span> o <span class="num">912345678</span>.</p>`;
     paint(head(d.editId?tituloWiz(d):'Nuevo pedido','Datos del cliente')+stepsHtml(1)+`<div class="sh-body">${d.editId?'':modo}<div class="w1"><div class="w1-a">${campos}</div><div class="w1-b tk-lado" id="ticket">${ticketHtml(d)}</div></div><p class="err" id="w-err" hidden></p></div><div class="sh-foot"><button class="btn ghost" data-act="close">Cancelar</button><button class="btn primary" data-act="wzNext">Siguiente: productos →</button></div>`);
@@ -1509,9 +1534,11 @@ function sheetWiz(){
     paint(head(tituloWiz(d),'¿Con qué va a pagar?')+stepsHtml(3)+`<div class="sh-body"><div class="w1"><div class="w1-a">${rec?'':`<div class="field"><label for="w-env3">Costo de delivery (S/)</label><input id="w-env3" type="number" min="0" step="0.5" inputmode="decimal" placeholder="0 si es gratis" value="${d.cliente.envio??''}"></div>`}<div class="pay">${metodos.map(([k,t])=>`<button class="btn ${p===k?'primary':''} ${k==='mixto'?'mx':''}" data-act="wzPago" data-p="${k}" aria-pressed="${p===k}">${t}</button>`).join('')}</div><div class="mix" id="w-det">${detPago(d)}</div><p class="err" id="w-err" hidden></p></div><div class="w1-b" id="ticket">${ticketHtml(d)}</div></div></div><div class="sh-foot"><button class="btn ghost" data-act="wzBack">← Productos</button><button class="btn primary" data-act="wzSend">${d.editId?'Guardar cambios':'Confirmar y enviar a cocina'}</button></div>`);
   }
 }
+function leerLlevar(){if(draft&&draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value;draft.celLlevar=$('#l-cel').value.replace(/\D/g,'');draft.promoLlevar=$('#l-promo').checked}}
 function wizLeerCliente(){
   const c=draft.cliente,v=id=>$(id).value.trim();
-  c.nombre=v('#w-nom');
+  c.nombre=v('#w-nom');c.cel=v('#w-cel').replace(/\D/g,'');
+  const pr=$('#w-promo');if(pr)c.promo=pr.checked;
   if(draft.tipo==='recoger')return;
   const e=v('#w-env');
   c.cel=v('#w-cel').replace(/\D/g,'');c.dir=v('#w-dir');c.lugar=v('#w-lug');c.ref=v('#w-ref');c.ubic=v('#w-ubi');
@@ -1617,7 +1644,7 @@ const ACT={
     closeSheet();commit(`Mesa ${n} separada para ${nombre} · ${hora12(hora)}`);
   },
   sepQuitar:(d,b)=>{if(!armed(b))return;delete S.reservas[d.n];commit('Mesa '+d.n+' libre otra vez')},
-  addLlevar:()=>{mix=mixVacio();startBuilder({tipo:'llevar',nombreLlevar:'',metodoLlevar:'Efectivo'})},
+  addLlevar:()=>{mix=mixVacio();startBuilder({tipo:'llevar',nombreLlevar:'',metodoLlevar:'Efectivo',celLlevar:'',promoLlevar:false})},
   serve:d=>{const p=find(d.id);p.estado='entregado';p.entregadoEn=Date.now();commit('Pedido '+num(p)+' entregado')},
   cuenta:d=>{S.cuenta[d.n]=!S.cuenta[d.n];commit(S.cuenta[d.n]?'Mesa '+d.n+' pidió la cuenta':'')},
   cobrar:d=>openSheet(sheetCobrar(+d.n)),
@@ -1630,7 +1657,7 @@ const ACT={
     m.ps.forEach(p=>{const parte=Math.min(resto,tot(p));resto=r2(resto-parte);p.pagos=pagosMix(mix.otro,parte,tot(p));p.pagado=true;p.metodo=metodoDePagos(p.pagos);p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});
     const nom=mesaNom(n),habia=unidasDe(n).length;unidasDe(n).forEach(k=>delete S.uniones[k]);S.cuenta[n]=false;closeSheet();commit(`${nom} cobrada: ${money(m.total)}${v>0?' · dar '+money(v)+' de vuelto':''}. ${habia?'Mesas libres y separadas.':'Mesa libre.'}`);
   },
-  mixOtro:d=>{if(draft&&draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}mix.otro=d.o;paint.keep=true;redraw()},
+  mixOtro:d=>{leerLlevar();mix.otro=d.o;paint.keep=true;redraw()},
   pagar:d=>{const n=+d.n,m=mesaInfo(n);m.ps.forEach(p=>{p.pagado=true;p.metodo=d.m;p.pagadoEn=Date.now();if(p.estado!=='entregado')p.estado='entregado'});const nom=mesaNom(n),habia=unidasDe(n).length;unidasDe(n).forEach(k=>delete S.uniones[k]);S.cuenta[n]=false;closeSheet();commit(`${nom} cobrada: ${money(m.total)} con ${d.m}. ${habia?'Mesas libres y separadas.':'Mesa libre.'}`)},
   newDel:()=>{mix=mixVacio();draft={tipo:'delivery',paso:1,cliente:{lugar:S.config.ciudad||''},items:[],pagoSel:null,pagaCon:''};bcat=(S.cats[0]||{}).id;bview='menu';openSheet(sheetWiz)},
   delDet:d=>openSheet(sheetDelDet(d.id)),
@@ -1640,6 +1667,7 @@ const ACT={
       wizLeerCliente();const c=draft.cliente;
       if(draft.tipo==='recoger'){
         if(!c.nombre)return err('#w-err','Falta el nombre del cliente.');
+        if(c.cel.length!==9)return err('#w-err','El celular debe tener 9 dígitos.');
         draft.paso++;bview='menu';redraw();return;
       }
       const e=!c.nombre?'Falta el nombre del cliente.':c.cel.length!==9?'El teléfono debe tener 9 dígitos.':!c.dir?'Falta la dirección.':c.ubic&&!/^https:\/\/\S+$/i.test(c.ubic)?'El enlace de ubicación debe empezar con https:// y no tener espacios.':c.envio<0?'El costo de delivery no puede ser negativo.':'';
@@ -1667,9 +1695,10 @@ const ACT={
     if(d.pagoSel==='mixto'){const msg=mixError(total,d.tipo!=='recoger');if(msg)return err('#w-err',msg)}
     const datosMix=d.pagoSel==='mixto'?{mixto:mix.otro,mixtoMonto:parseFloat(mix.monto)}:{};
     if(d.tipo==='recoger'){
-      if(d.editId)return guardarEdicion(d,{nombre:d.cliente.nombre,pago:d.pagoSel,pagaCon:0,...datosMix},0);
+      guardarCliente({nombre:d.cliente.nombre,cel:d.cliente.cel,promo:d.cliente.promo});
+      if(d.editId)return guardarEdicion(d,{nombre:d.cliente.nombre,cel:d.cliente.cel,pago:d.pagoSel,pagaCon:0,...datosMix},0);
       S.seq++;
-      const p={id:uid('p'),n:S.seq,tipo:'recoger',items:d.items,cliente:{nombre:d.cliente.nombre,pago:d.pagoSel,pagaCon:0,...datosMix},envio:0,estado:'nuevo',creado:Date.now(),pagado:false};
+      const p={id:uid('p'),n:S.seq,tipo:'recoger',items:d.items,cliente:{nombre:d.cliente.nombre,cel:d.cliente.cel,pago:d.pagoSel,pagaCon:0,...datosMix},envio:0,estado:'nuevo',creado:Date.now(),pagado:false};
       S.pedidos.push(p);closeSheet();
       commit(`Pedido ${num(p)} enviado a cocina · ${p.cliente.nombre} pasa a recoger`);
       return;
@@ -1680,20 +1709,20 @@ const ACT={
     if(d.editId)return guardarEdicion(d,c,c.envio);
     S.seq++;
     const p={id:uid('p'),n:S.seq,tipo:'delivery',items:d.items,cliente:c,envio:c.envio,estado:'nuevo',creado:Date.now(),pagado:false};
-    const {pago,pagaCon,mixto,mixtoMonto,envio,zona,zonaN,...guardar}=c;S.clientes[c.cel]=guardar;
+    const {pago,pagaCon,mixto,mixtoMonto,envio,zona,zonaN,...guardar}=c;guardarCliente(guardar,true);
     S.pedidos.push(p);closeSheet();
     const v=vuelto(p);
     commit(`Pedido ${num(p)} enviado a cocina`+(v?` · llevar ${money(v)} de vuelto`:''));
   },
   cat:d=>{bcat=d.c;redraw()},
-  bview:d=>{if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}bview=d.v;redraw()},
-  qtyPaso:d=>{const i=draft.items[+d.k];i.cant=Math.max(1,i.cant+ +d.d);if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
-  qtyDel:d=>{draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}paint.keep=true;redraw()},
+  bview:d=>{leerLlevar();bview=d.v;redraw()},
+  qtyPaso:d=>{const i=draft.items[+d.k];i.cant=Math.max(1,i.cant+ +d.d);leerLlevar();paint.keep=true;redraw()},
+  qtyDel:d=>{draft.items.splice(+d.k,1);if(!draft.items.length){bview='menu';if(draft.paso===3)draft.paso=2}leerLlevar();paint.keep=true;redraw()},
   prodOpen:d=>{const m=S.menu.find(x=>x.id===d.pid);if(!m||m.agotado)return;const sel={};prodGrupos(m).forEach(g=>{if(g.def)sel[g.k]=g.def});pop={pid:m.id,precio:m.precio,sel,cant:1,nota:'',ext:[],arm:armIni(m)};popPintar();$('#pop').hidden=false;if(matchMedia('(min-width:860px)').matches)$('#pop-add').focus()},
   popEdit:d=>{
     const k=+d.k,i=draft.items[k],m=S.menu.find(x=>x.id===i.pid);
     if(!m){toast('Este producto ya no está en la carta. Solo se puede eliminar.');return}
-    if(draft.tipo==='llevar'&&$('#l-nom')){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=$('#l-met').value}
+    leerLlevar()
     const partes=(i.op||'').split(' · '),sel={};
     prodGrupos(m).forEach(g=>{const hay=g.ops.find(o=>partes.includes(o));if(hay)sel[g.k]=hay;else if(g.def)sel[g.k]=g.def});
     const ya=i.ext||[];pop={pid:m.id,precio:r2(i.precio-ya.reduce((a,x)=>a+x.p,0)),sel,cant:i.cant,nota:i.nota||'',ext:ya.map(x=>x.n),arm:i.arm?armNorm(clone(i.arm)):armIni(m),editK:k};popPintar();$('#pop').hidden=false;
@@ -1713,7 +1742,7 @@ const ACT={
       const base={tipo:p.tipo,items,editId:p.id,antes:tot(p)};
       if(p.tipo==='mesa')base.mesa=p.mesa;
       if(p.tipo==='llevar'){
-        base.nombreLlevar=p.cliente.nombre;base.metodoLlevar=p.pagos?'Mixto':p.metodo;
+        base.nombreLlevar=p.cliente.nombre;base.celLlevar=p.cliente.cel||'';base.promoLlevar=!!(p.cliente.cel&&(S.clientes[p.cliente.cel]||{}).promo);base.metodoLlevar=p.pagos?'Mixto':p.metodo;
         if(p.pagos){const o=p.pagos.find(x=>x.m!=='Efectivo');if(o)mix={otro:o.m,monto:String(o.monto),con:''}}
       }
       startBuilder(base);bview='cart';redraw();
@@ -1750,18 +1779,18 @@ const ACT={
   },
   send:()=>{
     const d=draft;
-    if(d.tipo==='llevar'){d.nombreLlevar=$('#l-nom').value.trim();d.metodoLlevar=$('#l-met').value;if(!d.nombreLlevar)return err('#l-err','Escriba el nombre del cliente para llamarlo cuando esté listo.');if(d.metodoLlevar==='Mixto'){const msg=mixError(draftSub(d),true);if(msg)return err('#l-err',msg)}}
+    if(d.tipo==='llevar'){leerLlevar();d.nombreLlevar=d.nombreLlevar.trim();if(!d.nombreLlevar)return err('#l-err','Escriba el nombre del cliente para llamarlo cuando esté listo.');if(d.celLlevar&&d.celLlevar.length!==9)return err('#l-err','El celular debe tener 9 dígitos, o déjelo vacío.');if(d.celLlevar)guardarCliente({nombre:d.nombreLlevar,cel:d.celLlevar,promo:d.promoLlevar});if(d.metodoLlevar==='Mixto'){const msg=mixError(draftSub(d),true);if(msg)return err('#l-err',msg)}}
     if(d.editId){
       const p=find(d.editId);
       if(!p||!editable(p)){closeSheet();commit('Ese ticket ya no se puede editar: cambió de estado.');return}
       const antes=p.items;p.items=d.items;
-      if(d.tipo==='llevar'){p.cliente={nombre:d.nombreLlevar};delete p.pagos;p.metodo=d.metodoLlevar;if(d.metodoLlevar==='Mixto'){p.pagos=pagosMix(mix.otro,parseFloat(mix.monto),tot(p));p.metodo=metodoDePagos(p.pagos)}}
+      if(d.tipo==='llevar'){p.cliente=d.celLlevar?{nombre:d.nombreLlevar,cel:d.celLlevar}:{nombre:d.nombreLlevar};delete p.pagos;p.metodo=d.metodoLlevar;if(d.metodoLlevar==='Mixto'){p.pagos=pagosMix(mix.otro,parseFloat(mix.monto),tot(p));p.metodo=metodoDePagos(p.pagos)}}
       const msg=marcarEdicion(p,antes);closeSheet();commit(msg);return;
     }
     S.seq++;
     const p={id:uid('p'),n:S.seq,tipo:d.tipo,items:d.items,envio:0,estado:'nuevo',creado:Date.now(),pagado:false};
     if(d.tipo==='mesa'){p.mesa=d.mesa;S.cuenta[d.mesa]=false;delete S.reservas[d.mesa]}
-    if(d.tipo==='llevar'){p.cliente={nombre:d.nombreLlevar};p.pagado=true;p.metodo=d.metodoLlevar;p.pagadoEn=Date.now();if(d.metodoLlevar==='Mixto'){p.pagos=pagosMix(mix.otro,parseFloat(mix.monto),tot(p));p.metodo=metodoDePagos(p.pagos)}}
+    if(d.tipo==='llevar'){p.cliente=d.celLlevar?{nombre:d.nombreLlevar,cel:d.celLlevar}:{nombre:d.nombreLlevar};p.pagado=true;p.metodo=d.metodoLlevar;p.pagadoEn=Date.now();if(d.metodoLlevar==='Mixto'){p.pagos=pagosMix(mix.otro,parseFloat(mix.monto),tot(p));p.metodo=metodoDePagos(p.pagos)}}
     S.pedidos.push(p);closeSheet();commit(`Pedido ${num(p)} enviado a cocina`);
   },
   kStart:d=>{const p=find(d.id);p.estado='preparando';p.empezoEn=Date.now();commit()},
@@ -1774,6 +1803,8 @@ const ACT={
   // Admin
   atab:d=>{if(adminTab==='negocio')readNeg();adminTab=d.t;if(d.t==='clientes')clStats=null;render()},
   clOrden:d=>{clOrden=d.o;$('#cl-list').innerHTML=clientesLista();document.querySelectorAll('[data-act=clOrden]').forEach(b=>b.classList.toggle('on',b.dataset.o===clOrden))},
+  clSoloPromo:(d,b)=>{clSoloPromo=!clSoloPromo;b.classList.toggle('on',clSoloPromo);b.setAttribute('aria-pressed',clSoloPromo);$('#cl-list').innerHTML=clientesLista()},
+  clPromo:d=>{const c=S.clientes[d.cel];if(!c)return;guardarCliente({cel:d.cel,promo:!c.promo});commit((c.nombre||d.cel)+(S.clientes[d.cel].promo?' acepta promociones':' ya no recibirá promociones'))},
   clRecargar:()=>{clStats=null;render()},
   clExcel:()=>descargarClientes(),
   acat:d=>{adminCat=d.c;render()},
@@ -1849,6 +1880,10 @@ document.addEventListener('input',e=>{
       draft.frecuente=true;redraw();
     }
   }
+  if(t.id==='l-cel'&&draft){
+    const cel=t.value.replace(/\D/g,''),c=S.clientes[cel];draft.celLlevar=cel;
+    if(cel.length===9&&c){const n=$('#l-nom');if(n&&!n.value.trim()&&c.nombre){n.value=c.nombre;draft.nombreLlevar=c.nombre;toast('Cliente frecuente: '+c.nombre)}const pr=$('#l-promo');if(pr&&c.promo){pr.checked=true;draft.promoLlevar=true}}
+  }
   if(t.id==='cl-busca'){clBusca=t.value;$('#cl-list').innerHTML=clientesLista()}
   if(t.id==='tk-busca'){ticketBusca=t.value;$('#tk-list').innerHTML=ticketsLista()}
   if(t.id==='pop-nota'&&pop)pop.nota=t.value;
@@ -1856,7 +1891,9 @@ document.addEventListener('input',e=>{
   if(t.id==='w-con'){draft.pagaCon=t.value;tkRefrescar();$('#w-vuelto').innerHTML=vueltoHtml(draftSub(draft)+envioD(draft),t.value)}
 });
 document.addEventListener('change',e=>{
-  if(e.target.id==='l-met'&&draft){draft.nombreLlevar=$('#l-nom').value;draft.metodoLlevar=e.target.value;paint.keep=true;redraw()}
+  if(e.target.id==='l-met'&&draft){leerLlevar();paint.keep=true;redraw()}
+  if(e.target.id==='w-promo'&&draft&&draft.cliente)draft.cliente.promo=e.target.checked;
+  if(e.target.id==='l-promo'&&draft)draft.promoLlevar=e.target.checked;
   if(e.target.dataset.mrol){
     const s=e.target,u=equipo.find(x=>x.user_id===s.dataset.mrol);
     sb.from('miembros').update({rol:s.value}).eq('negocio_id',YO.negocioId).eq('user_id',u.user_id).select('rol').then(({data,error})=>{

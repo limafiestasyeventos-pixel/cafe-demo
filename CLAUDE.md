@@ -54,7 +54,11 @@ Si cambias datos guardados, agrega la conversión en `migrate()`: el dueño tien
 
 **Tipos de pedido**
 - Mesa y Para llevar: los toma el mesero o Caja, con el cliente en el local.
-- Delivery y Recoger: los toma quien atiende WhatsApp, en la laptop. Recoger pide solo el nombre.
+- Delivery y Recoger: los toma quien atiende WhatsApp, en la laptop. Recoger pide nombre y celular (obligatorio), para
+  avisarle por WhatsApp que está listo. Para llevar pide el celular como opcional.
+- Clientes: todos los que dan celular se guardan en `S.clientes` con `guardarCliente()` (delivery reemplaza sus datos; los
+  demás completan). Casilla "acepta promociones" (`promo`, `promoEn`): por la Ley de Protección de Datos Personales, las
+  promociones solo a quienes aceptaron. Admin → Clientes tiene el interruptor para quitarlo.
 - El pedido de Recoger lo puede entregar el mesero o Caja.
 - Separar mesa: lo hacen Caja o Dueño, con nombre y hora. Una separación por mesa y solo en mesas libres.
 - Unir mesas (grupos grandes): desde una mesa se juntan otras mesas libres (`S.uniones`: mesa unida → principal). Queda
@@ -144,6 +148,7 @@ Si cambias datos guardados, agrega la conversión en `migrate()`: el dueño tien
 - `mapQuery`, `mapLink`, `dirTxt`: Google Maps.
 - `SB_URL`, `SB_KEY`, `MODO`, `YO`: conexión y cuenta. `arrancar`, `acceso`, `entrarReal`: pantalla de acceso.
 - `personalReal`, `cargarEquipo`, `invCrear`, `mAct`: personal y códigos en Admin (modo con cuenta).
-- `ADMIN.clientes`, `cargarClientes`, `clientesLista`, `descargarClientes`: Admin → Clientes (solo delivery, por celular).
+- `ADMIN.clientes`, `cargarClientes`, `clientesLista`, `descargarClientes`: Admin → Clientes (delivery, recoger y para
+  llevar con celular; pedidos por tipo; promociones). `avisoListo`: botón de WhatsApp "ya está listo".
   Con cuenta, los totales salen de todo el historial de pedidos en Supabase (de mil en mil, solo los campos necesarios),
   no de `S.pedidos`, que solo tiene los días recientes. Excel = CSV con BOM para que Excel lea las tildes.
